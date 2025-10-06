@@ -15,6 +15,36 @@ def get_base_dir():
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
+# def get_base_dir():
+#     """
+#     Возвращает директорию, где находится исполняемый файл или скрипт.
+#     Оптимизировано для Nuitka (--onefile и --standalone) и PyInstaller.
+#     """
+#     if getattr(sys, 'frozen', False) or hasattr(sys, 'nuitka'):
+#         # Скомпилированный режим: Nuitka или PyInstaller
+#         if hasattr(sys, 'nuitka') and platform.system() == 'Linux':
+#             # Nuitka onefile на Linux: используем sys.argv[0] или /proc/self/exe
+#             exe_path = sys.argv[0]
+#             try:
+#                 # /proc/self/exe для надёжности в sandbox
+#                 exe_path = os.path.realpath('/proc/self/exe')
+#             except OSError:
+#                 pass  # Если /proc/self/exe недоступен, используем sys.argv[0]
+#         else:
+#             # PyInstaller или Nuitka standalone: sys.executable работает
+#             exe_path = sys.executable
+#         base_dir = os.path.dirname(os.path.realpath(exe_path))
+#         # Отладочный вывод (раскомментируйте для теста)
+#         # print(f"sys.argv[0]: {sys.argv[0]}")
+#         # print(f"sys.executable: {sys.executable}")
+#         # print(f"Executable path (resolved): {exe_path}")
+#         # print(f"Base dir (compiled): {base_dir}")
+#         return base_dir
+#     # Режим разработки: используем путь к текущему скрипту
+#     base_dir = os.path.dirname(os.path.abspath(__file__))
+#     # print(f"Base dir (dev): {base_dir}")
+#     return base_dir
+
 
 def make_writable(path):
     """Рекурсивно делает все файлы и папки доступными для удаления"""

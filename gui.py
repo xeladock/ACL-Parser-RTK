@@ -69,6 +69,46 @@ def validate_ip_or_network(value: str) -> bool:
     except ValueError:
         return False
 
+def fix_entry_shortcuts(entry_widget):
+    # Ctrl+A — выделить всё
+    def select_all(event=None):
+        entry_widget.focus_set()
+        entry_widget.selection_range(0, tk.END)
+        return "break"
+
+    # Ctrl+C
+    def copy(event=None):
+        entry_widget.event_generate("<<Copy>>")
+        return "break"
+
+    # Ctrl+X
+    def cut(event=None):
+        entry_widget.event_generate("<<Cut>>")
+        return "break"
+
+    # Ctrl+V — вставка с заменой выделенного
+    def paste(event=None):
+        try:
+            selection = entry_widget.selection_get()
+            # если выделен текст — удалить его
+            entry_widget.delete("sel.first", "sel.last")
+        except tk.TclError:
+            # ничего не выделено — просто вставляем в позицию курсора
+            pass
+        entry_widget.event_generate("<<Paste>>")
+        return "break"
+
+    # биндим все варианты (нижний и верхний регистр)
+    entry_widget.bind("<Control-a>", select_all)
+    entry_widget.bind("<Control-A>", select_all)
+    entry_widget.bind("<Control-c>", copy)
+    entry_widget.bind("<Control-C>", copy)
+    entry_widget.bind("<Control-v>", paste)
+    entry_widget.bind("<Control-V>", paste)
+    entry_widget.bind("<Control-x>", cut)
+    entry_widget.bind("<Control-X>", cut)
+
+
 class ParserApp:
     # LIGHT_BG = "#f0f0f0"
     def __init__(self, root):
@@ -176,14 +216,16 @@ class ParserApp:
         tk.Label(input_frame, text="Source IP:",bg="#f0f0f0").grid(row=0, column=0, sticky="w", padx=(10, 5))  #  sticky="w" вместо "e"
         self.src_entry = tk.Entry(input_frame, width=30)
         self.src_entry.grid(row=0, column=1, sticky="nw", padx=5)  # 🔹 Убедимся, что поле прижато влево
-        self.src_entry.bind("<Control-a>", select_all)
-        self.src_entry.bind("<Control-A>", select_all)
+        # self.src_entry.bind("<Control-a>", select_all)
+        # self.src_entry.bind("<Control-A>", select_all)
+        fix_entry_shortcuts(self.src_entry)
 
         tk.Label(input_frame, text="Destination IP:",bg="#f0f0f0").grid(row=1, column=0, sticky="w", padx=(10, 5))  # 🔹 sticky="w" вместо "e"
         self.dst_entry = tk.Entry(input_frame, width=30)
         self.dst_entry.grid(row=1, column=1, sticky="nw", padx=5)
-        self.dst_entry.bind("<Control-a>", select_all)
-        self.dst_entry.bind("<Control-A>", select_all)
+        # self.dst_entry.bind("<Control-a>", select_all)
+        # self.dst_entry.bind("<Control-A>", select_all)
+        fix_entry_shortcuts(self.dst_entry)
 
         self.strict_var = tk.BooleanVar(value=False)
         tk.Checkbutton(input_frame, text="Строгое соответствие",bg="#f0f0f0", highlightthickness=0,
@@ -248,13 +290,13 @@ class ParserApp:
         self.search_btn.grid(row=4, column=0, columnspan=2, pady=10,sticky="w", padx=500)
 
         # Окно вывода
-        self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=133, height=30,state="disabled")
+        self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=133, height=31.1,state="disabled")
         self.output.grid(row=5, column=0, columnspan=2, sticky="w", padx=5)
         self.save_btn = tk.Button(frame, text="Сохранить на диск", command=self.save_output)
         self.save_btn.grid(row=6, column=0, columnspan=2, padx=6,pady=(10,0), sticky="w")
         self.delete_btn = tk.Button(frame, text="Удалить папку конфигураций",
                                     command=self.delete_config_folder)
-        self.delete_btn.grid(row=6, column=1, columnspan=2,padx=470, pady=(10, 0), sticky="nw")
+        self.delete_btn.grid(row=6, column=1, columnspan=2,padx=470, pady=(10, 0), sticky="w")
 
 
     def run_search(self):
@@ -340,25 +382,25 @@ class ParserApp:
 
 
 
-        win = tk.Frame(self.root, padx=10, pady=10)
+        win = tk.Frame(self.root, padx=10, pady=10,bg="#f0f0f0")
         win.pack(fill="both", expand=True)
 
         win.grid_columnconfigure(0, weight=0)
         win.grid_columnconfigure(1, weight=1)
 
-        tk.Label(win, text="GitLab login:").grid(row=0, column=0, sticky="e",padx=(0,5))
+        tk.Label(win, text="GitLab login:",bg="#f0f0f0").grid(row=0, column=0, sticky="e",padx=(0,5))
         login_entry = tk.Entry(win, width=30)
         login_entry.grid(row=0, column=1,sticky="nw", padx=5)
 
-        tk.Label(win, text="GitLab password:").grid(row=1, column=0, sticky="e",padx=(0,5))
+        tk.Label(win, text="GitLab password:",bg="#f0f0f0").grid(row=1, column=0, sticky="e",padx=(0,5))
         pass_entry = tk.Entry(win, width=30, show="*")
         pass_entry.grid(row=1, column=1,sticky="nw", padx=5)
 
-        tk.Label(win, text="NetBox API token:").grid(row=2, column=0, sticky="e",padx=(0,5))
+        tk.Label(win, text="NetBox API token:",bg="#f0f0f0").grid(row=2, column=0, sticky="e",padx=(0,5))
         token_entry = tk.Entry(win, width=60, show="*")
         token_entry.grid(row=2, column=1,sticky="nw", padx=5)
 
-        log_area = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=130, height=33)
+        log_area = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=135, height=35)
         log_area.grid(row=4, column=0, columnspan=2, pady=10)
 
         def download():
@@ -401,7 +443,7 @@ class ParserApp:
             threading.Thread(target=worker, daemon=True).start()
 
         download_btn = tk.Button(win, text="Скачать", command=download)
-        download_btn.grid(row=3, column=0, columnspan=2, pady=15)
+        download_btn.grid(row=3, column=0, columnspan=2, pady=(13, 0))
 
 if __name__ == "__main__":
     root = tk.Tk()

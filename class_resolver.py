@@ -446,15 +446,15 @@ class CiscoIOSParser:
         except ValueError:
             return False
 
-    def _matches(self, input_str, candidates, strict_mode):
+    def _matches(self, input_str, candidates, strict_mode, is_standard_acl=False):
         if input_str == "any":
             return True
+        if "any" in candidates:
+            return not strict_mode or is_standard_acl  # For standard ACL, dst=any always matches in strict mode if input is any
         try:
             if '/' in input_str:  # Network input
                 input_net = ipaddress.ip_network(input_str, strict=False)
                 for candid in candidates:
-                    if candid == "any" and strict_mode:
-                        continue
                     cand_net = self._cand_to_net(candid)
                     if cand_net and cand_net == input_net:
                         return True
@@ -463,8 +463,6 @@ class CiscoIOSParser:
                 input_ip = ipaddress.ip_address(input_str)
                 input_net_32 = ipaddress.ip_network(str(input_ip) + '/32', strict=False)
                 for candid in candidates:
-                    if candid == "any" and strict_mode:
-                        continue
                     if strict_mode:
                         cand_net = self._cand_to_net(candid)
                         if cand_net and cand_net == input_net_32:
@@ -528,8 +526,8 @@ class CiscoIOSParser:
                 elif len(parts) > 2:
                     acl_name = parts[1]
                     if acl_name.isdigit():
-                        acl_type = 'standard' if int(acl_name) < 100 else 'extended'
-                        rule = parts[2]
+                        acl_type = 'standard' if int(acl_name) < 100 or 1300 <= int(acl_name) <= 1999 else 'extended'
+                        rule = ' '.join(parts[2:])
                         if acl_name not in self.acls:
                             self.acls[acl_name] = {'type': acl_type, 'rules': [], 'header_prefix': 'access-list'}
                         self.acls[acl_name]['rules'].append(rule)
@@ -659,15 +657,10 @@ class CiscoIOSParser:
 
         src, i = parse_entry(i)
 
-        # Skip source ports or extras like "established"
-        while i < len(parts) and parts[i] in ["eq", "gt", "lt", "neq", "range", "established", "destination-port"]:
-            i += 1
-            if i < len(parts):
-                i += 1
-                if parts[i-2] == "range" and i < len(parts):
-                    i += 1
+        # For standard ACLs, destination is always 'any'
+        dst = "any" if acl_type == 'standard' else parse_entry(i)[0]
 
-        dst = "any"
+        # For extended ACLs, parse destination and skip extras
         if acl_type == 'extended':
             dst, i = parse_entry(i)
             # Skip destination ports or extras
@@ -691,35 +684,37 @@ class CiscoIOSParser:
 
     def find_acl_matches(self, src_ip, dst_ip, strict_mode=False):
         matches = []
-        current_acl = None
         for acl_name, acl_data in self.acls.items():
             acl_type = acl_data['type']
-            header_prefix = acl_data.get('header_prefix', 'ip access-list')
+            acl_rules = []
             for rule in acl_data['rules']:
-                if rule.startswith('remark'):
+                if rule.startswith('remark') or not rule.strip():
                     continue
                 parts = rule.split()
+                if not parts:
+                    continue
                 try:
                     src_entry, dst_entry = self._extract_src_dst(parts, acl_type)
                     src_ips = self._resolve_entry(src_entry)
                     dst_ips = self._resolve_entry(dst_entry)
 
-                    src_ok = self._matches(src_ip, src_ips, strict_mode)
-                    dst_ok = self._matches(dst_ip, dst_ips, strict_mode)
+                    # Skip rules with src=any and dst=any
+                    if src_ips == ["any"] and dst_ips == ["any"]:
+                        continue
+
+                    src_ok = self._matches(src_ip, src_ips, strict_mode, is_standard_acl=(acl_type == 'standard'))
+                    # For standard ACL, dst_ok is True only if dst_ip is "any" in strict_mode
+                    dst_ok = (acl_type == 'standard' and (not strict_mode or dst_ip == "any")) or \
+                             self._matches(dst_ip, dst_ips, strict_mode, is_standard_acl=False)
                     if src_ok and dst_ok:
-                        if acl_name != current_acl:
-                            if acl_name == "management-network":
-                                matches.append("access management-network")
-                            elif acl_name.isdigit():
-                                matches.append(f"access-list {acl_name}")
-                            elif header_prefix == "access-list ip":
-                                matches.append(f"access-list ip {acl_type} {acl_name}")
-                            else:
-                                matches.append(f"ip access-list {acl_type} {acl_name}")
-                            current_acl = acl_name
-                        matches.append(f" {rule}")
+                        acl_rules.append(rule)
                 except Exception:
                     continue
+            if acl_rules:
+                header = f"access-list {acl_name}" if acl_name.isdigit() else f"ip access-list {acl_type} {acl_name}"
+                matches.append(header)
+                for rule in acl_rules:
+                    matches.append(f" {rule}")
         return tuple(matches)
 
     @classmethod
@@ -1868,13 +1863,16 @@ class JuniperACLParser:
     def _matches(self, input_str, ip_list, strict_mode):
         if input_str == "any":
             return True
-        if "any" in ip_list:
-            return True
 
         try:
             if '/' in input_str:  # network
                 input_net = ipaddress.ip_network(input_str, strict=False)
                 for net in ip_list:
+                    if net == "any":
+                        if strict_mode:
+                            continue
+                        else:
+                            return True
                     cand_net = self._cand_to_net(net)
                     if cand_net and cand_net == input_net:
                         return True
@@ -1883,6 +1881,11 @@ class JuniperACLParser:
                 ip_obj = ipaddress.ip_address(input_str)
                 input_net_32 = ipaddress.ip_network(str(ip_obj) + '/32', strict=False)
                 for net in ip_list:
+                    if net == "any":
+                        if strict_mode:
+                            continue
+                        else:
+                            return True
                     if strict_mode:
                         cand_net = self._cand_to_net(net)
                         if cand_net and cand_net == input_net_32:
@@ -1898,6 +1901,8 @@ class JuniperACLParser:
             return False
 
     def find_acl_matches(self, src_ip, dst_ip, strict_mode=False):
+        if dst_ip not in (None, "any") and strict_mode:
+            return tuple()  # No strict match for dst in Juniper ACLs
         results = []
         for filt, terms in self.filters.items():
             if filt == "None":  # Игнорируем фильтр с именем None
@@ -1919,7 +1924,7 @@ class JuniperACLParser:
             if matched:
                 results.append(f"filter {filt}:")
                 results.extend("  " + m for m in matched)
-        return results
+        return tuple(results)
 
     @classmethod
     def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="collected_files_clear",
@@ -1931,9 +1936,9 @@ class JuniperACLParser:
                     with open(full_path, "r", encoding=encoding, errors="ignore") as f:
                         config_text = f.read()
                     parser = cls(config_text)
-                    return parser.find_acl_matches(src_ip, dst_ip, strict_mode)
+                    return tuple(parser.find_acl_matches(src_ip, dst_ip, strict_mode))
         print(f"⚠️ Файл {filename} не найден в директории {base_dir}")
-        return []
+        return tuple()
 class EltexACLParser:
     def __init__(self, config_text):
         self.config_lines = config_text.splitlines()
@@ -1978,11 +1983,9 @@ class EltexACLParser:
             return False
 
     def find_matches(self, src_ip, dst_ip=None, strict_mode=False):
-        """
-        Return rules in the original format with a space before each rule:
-        'management access-list {acl_name}\n {rule1}\n {rule2}...'.
-        If src_ip is "any", return all rules for each ACL.
-        """
+        if dst_ip not in (None, "any") and strict_mode:
+            return set()  # No strict match for dst in Eltex ACLs
+
         matches = []
         for acl, rules in self.acls.items():
             matched_rules = []

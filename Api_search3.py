@@ -28,16 +28,16 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_m
             dd[root.split(os.sep)[-1]].append(file)
 
     results = []
-    print(dd)
+    # print(dd)
     # --- парсинг по платформам ---
     for k, v in dd.items():
         if allowed_platforms and k not in allowed_platforms:
             continue
         if k == 'FortiOS':
-            print(k ,v)
+            # print(k ,v)
             for vv in v:
                 res = FortiOSParser.from_local_file(vv, search_text[0], search_text[1],strict_mode=strict_mode)
-                print(res)
+                # print(res)
                 if res:
                     yield(f"----{k}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
@@ -56,9 +56,9 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_m
                     yield(vv + ": \n" + "\n".join(res) + "\n")
         if k in ('Cisco IOS XE','Cisco IOS XR'):
             for vv in v:
-                print(vv)
+                # print(vv)
                 res = CiscoIOSXEParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
-                print(res)
+                # print(res)
                 if res:
                     yield(f"----{k}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
