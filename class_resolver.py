@@ -1216,7 +1216,8 @@ class HuaweiParser:
         self.parse()
 
     @classmethod
-    def from_local_file(cls, filename, src_ip, dst_ip, base_dir="collected_files_clear", encoding="utf-8", strict_mode=False):
+    def from_local_file(cls, filename, src_ip, dst_ip, base_dir="collected_files_clear", encoding="utf-8",
+                        strict_mode=False):
         for root, _, files in os.walk(base_dir):
             for file in files:
                 if file == filename:
@@ -1226,11 +1227,11 @@ class HuaweiParser:
                             config_text = f.read()
                     except Exception as e:
                         print(f"[!] Ошибка при чтении {full_path}: {e}")
-                        return []
+                        return ()
                     parser = cls(config_text)
                     return parser.find_acl_matches(src_ip, dst_ip, strict_mode)
         print(f"⚠️ Файл {filename} не найден в директории {base_dir}")
-        return []
+        return ()
 
     def parse(self):
         current_acl = None
@@ -1336,10 +1337,13 @@ class HuaweiParser:
             k = bin(w).count("1")
             prefix = 32 - k
             try:
-                net = ipaddress.IPv4Network((ip_str, prefix), strict=False)
+                net = ipaddress.IPv4Network((ip_str, prefix), strict=True)
                 return str(net)
-            except Exception:
-                return f"{ip_str}/{prefix}"
+            except ValueError:
+                ip_int = int(ipaddress.IPv4Address(ip_str))
+                start = (ip_int & (~w & 0xFFFFFFFF)) & 0xFFFFFFFF
+                end = (ip_int | w) & 0xFFFFFFFF
+                return ("range", ipaddress.IPv4Address(start), ipaddress.IPv4Address(end))
 
         ip_int = int(ipaddress.IPv4Address(ip_str))
         start = (ip_int & (~w & 0xFFFFFFFF)) & 0xFFFFFFFF
@@ -1350,7 +1354,11 @@ class HuaweiParser:
         if text == "any":
             return "any"
         if "/" in text:
-            return text  # CIDR
+            try:
+                net = ipaddress.ip_network(text, strict=True)
+                return str(net)
+            except ValueError:
+                return None
         if " " in text:
             parts = text.split()
             ip = parts[0]
@@ -1361,54 +1369,56 @@ class HuaweiParser:
     def _get_min_max(self, spec):
         if spec == "any":
             return 0, 0xFFFFFFFF
+        if spec is None:
+            return None, None
         if isinstance(spec, tuple) and spec[0] == "range":
             _, start, end = spec
             return int(start), int(end)
         if "/" in spec:
             net = ipaddress.ip_network(spec, strict=False)
             return int(net.network_address), int(net.broadcast_address)
-        # single IP
         ip = ipaddress.ip_address(spec)
         return int(ip), int(ip)
 
     def _spec_intersects(self, spec1, spec2, strict_mode):
-        # print(f"[DEBUG] _spec_intersects: spec1={spec1}, spec2={spec2}, strict_mode={strict_mode}")
-        # Случай, когда одна из спецификаций — "any"
-        if spec1 == "any" or spec2 == "any":
-            if strict_mode:
-                result = spec1 == spec2 == "any"
-                # print(f"[DEBUG] _spec_intersects: any case, strict_mode=True, result={result}")
-                return result
-            result = True
-            # print(f"[DEBUG] _spec_intersects: any case, strict_mode=False, result={result}")
-            return result
+        if spec1 is None or spec2 is None:
+            return False
 
-        # Получаем диапазоны для обеих спецификаций
+        if spec1 == "any" or spec2 == "any":
+            if spec1 == spec2 == "any":
+                return True
+            return not strict_mode
+
         min1, max1 = self._get_min_max(spec1)
         min2, max2 = self._get_min_max(spec2)
 
-        # Проверяем пересечение диапазонов
+        is_network1 = max1 > min1
+        is_network2 = max2 > min2
+
         overlap = max1 >= min2 and max2 >= min1
-        # print(f"[DEBUG] _spec_intersects: min1={min1}, max1={max1}, min2={min2}, max2={max2}, overlap={overlap}")
+
+        if is_network1:
+            return min1 == min2 and max1 == max2
 
         if strict_mode:
-            result = min1 == min2 and max1 == max2
-            # print(f"[DEBUG] _spec_intersects: strict_mode=True, result={result}")
-            return result
-        result = overlap
-        # print(f"[DEBUG] _spec_intersects: strict_mode=False, result={result}")
-        return result
+            return min1 == min2 and max1 == max2
+
+        return min2 <= min1 <= max2
 
     def find_acl_matches(self, src_ip, dst_ip, strict_mode=False):
         src_spec_search = self._parse_search(src_ip)
         dst_spec_search = self._parse_search(dst_ip)
+
+        if src_spec_search is None or dst_spec_search is None:
+            return []
 
         results = []
         for acl_key, rules in self.acls.items():
             matched_rules = []
             for rule_line, pairs in rules.items():
                 for src_spec, dst_spec in pairs:
-                    if self._spec_intersects(src_spec_search, src_spec, strict_mode) and self._spec_intersects(dst_spec_search, dst_spec, strict_mode):
+                    if self._spec_intersects(src_spec_search, src_spec, strict_mode) and self._spec_intersects(
+                            dst_spec_search, dst_spec, strict_mode):
                         matched_rules.append(rule_line)
                         break
             if matched_rules:
@@ -1416,7 +1426,7 @@ class HuaweiParser:
                 results.append(header)
                 for r in matched_rules:
                     results.append(f"  {r}")
-        return results
+        return tuple(results)
 class CiscoNexusParser:
     def __init__(self, lines):
         self.lines = lines

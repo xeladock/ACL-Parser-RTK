@@ -28,7 +28,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_m
             dd[root.split(os.sep)[-1]].append(file)
 
     results = []
-    # print(dd)
+    print(dd)
     # --- парсинг по платформам ---
     for k, v in dd.items():
         if allowed_platforms and k not in allowed_platforms:
@@ -42,7 +42,9 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_m
                     yield(f"----{k}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
         if k in ('Cisco ASA', 'Cisco FXOS', 'Cisco PIX'):
+            # print(k ,v)
             for vv in v:
+                print(k)
                 res = CiscoASAParser3.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
                     yield(f"----{k}----")

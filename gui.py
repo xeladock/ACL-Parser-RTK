@@ -32,11 +32,38 @@ PLATFORM_GROUPS = {
     "Huawei": ["Huawei VRP"],
     "Прочие устройства": [   # всё остальное
         "B4COM BCOM-OS-DC", "EdgeCore", "IBM_Lenovo Network OS",
-        "HP ProCurve", "Dell Networking OS", "Juniper Junos", "Eltex", "Cisco IOS XR"
+        "HP ProCurve", "Dell Networking OS", "Juniper Junos", "Eltex", "Cisco IOS XR", "Cisco PIX"
     ],
 }
 
+def add_placeholder(entry, placeholder="any", color="gray"):
+    """Добавляет серый placeholder, который исчезает при вводе."""
+    default_fg = entry.cget("fg")
 
+    def on_focus_in(event):
+        if entry.get() == placeholder and entry.cget("fg") == color:
+            entry.delete(0, tk.END)
+            entry.config(fg=default_fg)
+
+    def on_focus_out(event):
+        if not entry.get().strip():
+            entry.insert(0, placeholder)
+            entry.config(fg=color)
+
+    # Инициализация placeholder при запуске
+    entry.insert(0, placeholder)
+    entry.config(fg=color)
+
+    # Привязки событий
+    entry.bind("<FocusIn>", on_focus_in)
+    entry.bind("<FocusOut>", on_focus_out)
+
+def limit_entry_length(entry_widget, max_length=50):
+    """Запрещает ввод строк длиннее max_length символов."""
+    def on_validate(P):
+        return len(P) <= max_length
+    vcmd = (entry_widget.register(on_validate), "%P")
+    entry_widget.config(validate="key", validatecommand=vcmd)
 
 def toggle_all(group_vars, master_var):
     """
@@ -112,6 +139,7 @@ def fix_entry_shortcuts(entry_widget):
 class ParserApp:
     # LIGHT_BG = "#f0f0f0"
     def __init__(self, root):
+        self.all_regions_var = None
         self.root = root
         self.root.title("ACL Parser. Версия для AltLinux.")
         self.root.geometry("1100x820")
@@ -219,6 +247,8 @@ class ParserApp:
         # self.src_entry.bind("<Control-a>", select_all)
         # self.src_entry.bind("<Control-A>", select_all)
         fix_entry_shortcuts(self.src_entry)
+        limit_entry_length(self.src_entry, 50)
+        add_placeholder(self.src_entry, "any", "gray")
 
         tk.Label(input_frame, text="Destination IP:",bg="#f0f0f0").grid(row=1, column=0, sticky="w", padx=(10, 5))  # 🔹 sticky="w" вместо "e"
         self.dst_entry = tk.Entry(input_frame, width=30)
@@ -226,6 +256,8 @@ class ParserApp:
         # self.dst_entry.bind("<Control-a>", select_all)
         # self.dst_entry.bind("<Control-A>", select_all)
         fix_entry_shortcuts(self.dst_entry)
+        limit_entry_length(self.dst_entry, 50)
+        add_placeholder(self.dst_entry, "any", "gray")
 
         self.strict_var = tk.BooleanVar(value=False)
         tk.Checkbutton(input_frame, text="Строгое соответствие",bg="#f0f0f0", highlightthickness=0,
@@ -250,6 +282,7 @@ class ParserApp:
                 col = 0
                 row += 1
         self.all_regions_var = tk.BooleanVar(value=True)
+        
         all_regions_cb = tk.Checkbutton(
             prefix_frame,
             text="Все",
