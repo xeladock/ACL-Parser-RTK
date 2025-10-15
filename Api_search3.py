@@ -11,6 +11,23 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 output_dir = "collected_files_clear"
 
+PREFIX_LABELS = {
+    "Волга": "PRNG-DC",
+    "ДВ": "DVPR-DC",
+    "СЗ": "SZSP-DC",
+    "Центр": "CEMO-DC",
+    "КЦ": "CEMS-DC",
+    "Урал": "UREK-DC",
+    "Юг": "UKFR-DC",
+    "Сибирь": "SINO-DC",
+}
+
+
+def region(vv):
+    region_name = next(
+        (label for label, prefix in PREFIX_LABELS.items() if vv.startswith(prefix))
+    )
+    return region_name
 
 def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_mode=False):
     if not os.path.exists(output_dir):
@@ -39,7 +56,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_m
                 res = FortiOSParser.from_local_file(vv, search_text[0], search_text[1],strict_mode=strict_mode)
                 # print(res)
                 if res:
-                    yield(f"----{k}----")
+                    yield(f"----{k} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
         if k in ('Cisco ASA', 'Cisco FXOS', 'Cisco PIX'):
             # print(k ,v)
@@ -47,14 +64,14 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_m
                 print(k)
                 res = CiscoASAParser3.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k}----")
+                    yield(f"----{k} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
         if k in ('Cisco IOS','B4COM BCOM-OS-DC','EdgeCore','IBM_Lenovo Network OS','HP ProCurve','Dell Networking OS') :
             for vv in v:
                 res = CiscoIOSParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k}----")
+                    yield(f"----{k} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
         if k in ('Cisco IOS XE','Cisco IOS XR'):
             for vv in v:
@@ -62,53 +79,53 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_m
                 res = CiscoIOSXEParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 # print(res)
                 if res:
-                    yield(f"----{k}----")
+                    yield(f"----{k} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
         if k == 'Cisco NX-OS':
             for vv in v:
                 res = CiscoNexusParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k}----")
+                    yield(f"----{k} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
         if k == 'Huawei VRP':
             for vv in v:
                 res = HuaweiParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k}----")
+                    yield(f"----{k} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
         if k == 'Juniper Junos':
             for vv in v:
                 res = JuniperACLParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k}----")
+                    yield(f"----{k} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
         if k == 'Eltex':
             for vv in v:
                 res = EltexACLParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k}----")
+                    yield(f"----{k} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
     return results
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Использование: python Api-search3.py <src_ip> <dst_ip> [prefix1 prefix2 ...] [--platforms ...]")
-        sys.exit(1)
-
-    src_ip, dst_ip = sys.argv[1], sys.argv[2]
-
-    if "--platforms" in sys.argv:
-        idx = sys.argv.index("--platforms")
-        allowed_prefixes = sys.argv[3:idx]
-        allowed_platforms = sys.argv[idx + 1:]
-    else:
-        allowed_prefixes = sys.argv[3:]
-        allowed_platforms = None
-
-    res = main(src_ip, dst_ip, allowed_prefixes, allowed_platforms)
-    for line in res:
-        print(line)
+# if __name__ == "__main__":
+#     if len(sys.argv) < 3:
+#         print("Использование: python Api-search3.py <src_ip> <dst_ip> [prefix1 prefix2 ...] [--platforms ...]")
+#         sys.exit(1)
+#
+#     src_ip, dst_ip = sys.argv[1], sys.argv[2]
+#
+#     if "--platforms" in sys.argv:
+#         idx = sys.argv.index("--platforms")
+#         allowed_prefixes = sys.argv[3:idx]
+#         allowed_platforms = sys.argv[idx + 1:]
+#     else:
+#         allowed_prefixes = sys.argv[3:]
+#         allowed_platforms = None
+#
+#     res = main(src_ip, dst_ip, allowed_prefixes, allowed_platforms)
+#     for line in res:
+#         print(line)

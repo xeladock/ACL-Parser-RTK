@@ -155,15 +155,18 @@ def main(gitlab_login, gitlab_password, netbox_token):
         yield (f"Скачиваем файлы с gitlab...")
         time.sleep(1)
         if os.path.exists(clone_dir):
+            make_writable(clone_dir)
             shutil.rmtree(clone_dir)
             time.sleep(2)
 
         # yield (f"Скачиваем данные...")
         result = subprocess.run(
-            ["git", "clone", "--depth=1", repo_url, clone_dir]
+            ["git", "clone", "--depth=1", repo_url, clone_dir],
             # stdout=subprocess.PIPE,
             # stderr=subprocess.STDOUT,
-            # text=True
+            text=True,
+            capture_output = True,
+            creationflags = subprocess.CREATE_NO_WINDOW
         )
         # logs.append(result.stdout)
 
@@ -209,7 +212,9 @@ def main(gitlab_login, gitlab_password, netbox_token):
                 yield f"❌ Ошибка при удалении {clone_dir}: {e}"
                 # print(f"❌ Ошибка при удалении .git: {e}")
         # shutil.rmtree(clone_dir, ignore_errors=True)
-
+        time.sleep(1)
+        make_writable(CONFIG_DIR)
+        time.sleep(1)
         yield ("\n✅ Все файлы успешно скачаны и очищены.")
         # return True, logs
 
@@ -218,13 +223,13 @@ def main(gitlab_login, gitlab_password, netbox_token):
         # return False, logs
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print("Использование: python copy_to_local_at_type.py <login> <password> <netbox_token>")
-        sys.exit(1)
-
-    login, password, token = sys.argv[1], sys.argv[2], sys.argv[3]
-    success, logs = main(login, password, token)
-    for line in logs:
-        print(line)
-    sys.exit(0 if success else 1)
+# if __name__ == "__main__":
+#     if len(sys.argv) < 4:
+#         print("Использование: python copy_to_local_at_type.py <login> <password> <netbox_token>")
+#         sys.exit(1)
+#
+#     login, password, token = sys.argv[1], sys.argv[2], sys.argv[3]
+#     success, logs = main(login, password, token)
+#     for line in logs:
+#         print(line)
+#     sys.exit(0 if success else 1)

@@ -1,12 +1,12 @@
 import ipaddress
+import time
 import os
 import threading
 from re import sub as rs
 import tkinter as tk
-from tkinter import messagebox, scrolledtext
+from tkinter import messagebox, scrolledtext, filedialog
 import Api_search3, copy_to_local_at_type
 from datetime import datetime
-from tkinter import filedialog
 import shutil
 
 CONFIG_DIR = "collected_files_clear"
@@ -204,6 +204,7 @@ class ParserApp:
 
         try:
             shutil.rmtree(CONFIG_DIR)
+            time.sleep(0.5)
             messagebox.showinfo("Успех!", "Папка конфигураций удалена.")
         except Exception as e:
             messagebox.showerror("Ошибка!", f"Не удалось удалить папку:\n{e}")
@@ -261,8 +262,18 @@ class ParserApp:
 
         self.strict_var = tk.BooleanVar(value=False)
         tk.Checkbutton(input_frame, text="Строгое соответствие",bg="#f0f0f0", highlightthickness=0,
-                       variable=self.strict_var).grid(row=2, column=0, columnspan=2, sticky="w", padx=(2, 5), pady=(10, 5))
+                       variable=self.strict_var).grid(row=2, column=0, columnspan=2, sticky="w", padx=(0, 5), pady=(0, 5))
 
+        self.src_or_dst_var = tk.BooleanVar(value=False)
+        src_or_dst_check = tk.Checkbutton(
+            input_frame,
+            text="Source or Destination",
+            highlightthickness=0,  # убирает контур фокуса
+            bd=0,
+            variable=self.src_or_dst_var,
+            bg="#f0f0f0"
+        )
+        src_or_dst_check.grid(row=3, column=0, columnspan=2, sticky="w", padx=(1, 5), pady=(0, 5))
         # 🔹 Группа чекбоксов
 
         # tk.LabelFrame(frame, text="Фильтр по префиксам файлов:")
@@ -326,10 +337,10 @@ class ParserApp:
         self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=133, height=31.1,state="disabled")
         self.output.grid(row=5, column=0, columnspan=2, sticky="w", padx=5)
         self.save_btn = tk.Button(frame, text="Сохранить на диск", command=self.save_output)
-        self.save_btn.grid(row=6, column=0, columnspan=2, padx=6,pady=(10,0), sticky="w")
+        self.save_btn.grid(row=6, column=0, columnspan=2, padx=6,pady=(5,0), sticky="w")
         self.delete_btn = tk.Button(frame, text="Удалить папку конфигураций",
                                     command=self.delete_config_folder)
-        self.delete_btn.grid(row=6, column=1, columnspan=2,padx=470, pady=(10, 0), sticky="w")
+        self.delete_btn.grid(row=6, column=1, columnspan=2,padx=470, pady=(5, 0), sticky="w")
 
 
     def run_search(self):
@@ -350,6 +361,14 @@ class ParserApp:
             src_ip = "any"
         if not dst_ip:
             dst_ip = "any"
+        src_or_dst_mode = self.src_or_dst_var.get()
+
+        if src_or_dst_mode and ((src_ip!="any" and dst_ip!="any") or (src_ip=="any" and dst_ip=="any")):
+            messagebox.showerror("Ошибка!",
+                                 f"Должен быть один адрес в поле Source ИЛИ Destination.")
+            return
+
+        # self.output.config(state="normal")
 
         self.output.config(state="normal")
 
@@ -361,12 +380,18 @@ class ParserApp:
 
         if not enabled_prefixes:
             messagebox.showerror("Ошибка", "Нужно выбрать хотя бы один регион!")
+            self.all_regions_var.set(False)
             return
 
         self.output.delete("1.0", tk.END)
         self.output.config(state="normal")
-        self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip}\n\n")
-        self.output.insert(tk.END, f"Активные префиксы: {', '.join(enabled_region_labels)}\n")
+        if src_or_dst_mode:
+            self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip} и {dst_ip} → {src_ip}\n\n")
+        else:
+            self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip}\n\n")
+
+        # self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip}\n\n")
+        self.output.insert(tk.END, f"Активные регионы: {', '.join(enabled_region_labels)}\n")
         self.output.see(tk.END)
 
         # --- блок чекбоксов по платформам ---
@@ -377,6 +402,7 @@ class ParserApp:
 
         if not enabled_platforms:
             messagebox.showerror("Ошибка!", "Нужно выбрать хотя бы одну платформу!")
+            self.all_platforms_var.set(False)
             return
 
         # выводим в лог
@@ -389,11 +415,23 @@ class ParserApp:
         self.save_btn.config(state=tk.DISABLED)
         self.delete_btn.config(state=tk.DISABLED)
 
-        def worker():
-            res = Api_search3.main(src_ip, dst_ip, enabled_prefixes, enabled_platforms, strict_mode)
+        def add_result(res):
             for line in res:
                 self.output.insert(tk.END, line + "\n")
                 self.output.see(tk.END)
+
+        def worker():
+            if src_or_dst_mode:
+                if src_ip!="any": search_ip = src_ip
+                else:             search_ip = dst_ip
+                res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, strict_mode)
+                add_result(res)
+                self.output.insert(tk.END, "--Обратный поиск--\n\n")
+                res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, strict_mode)
+                add_result(res)
+            else:
+                res = Api_search3.main(src_ip, dst_ip, enabled_prefixes, enabled_platforms, strict_mode)
+            add_result(res)
             self.output.insert(tk.END, "✅ Поиск завершен.\n")
             self.search_btn.config(state=tk.NORMAL)
             self.save_btn.config(state=tk.NORMAL)
@@ -424,19 +462,26 @@ class ParserApp:
         tk.Label(win, text="GitLab login:",bg="#f0f0f0").grid(row=0, column=0, sticky="e",padx=(0,5))
         login_entry = tk.Entry(win, width=30)
         login_entry.grid(row=0, column=1,sticky="nw", padx=5)
+        fix_entry_shortcuts(login_entry)
+        limit_entry_length(login_entry, 50)
 
         tk.Label(win, text="GitLab password:",bg="#f0f0f0").grid(row=1, column=0, sticky="e",padx=(0,5))
         pass_entry = tk.Entry(win, width=30, show="*")
         pass_entry.grid(row=1, column=1,sticky="nw", padx=5)
+        fix_entry_shortcuts(pass_entry)
+        limit_entry_length(pass_entry,64)
 
         tk.Label(win, text="NetBox API token:",bg="#f0f0f0").grid(row=2, column=0, sticky="e",padx=(0,5))
         token_entry = tk.Entry(win, width=60, show="*")
         token_entry.grid(row=2, column=1,sticky="nw", padx=5)
+        fix_entry_shortcuts(token_entry)
+        limit_entry_length(token_entry,50)
 
-        log_area = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=135, height=35)
+        log_area = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=135, height=35,state="disabled")
         log_area.grid(row=4, column=0, columnspan=2, pady=10)
 
         def download():
+            log_area.config(state="normal")
             login = login_entry.get().strip()
             password = pass_entry.get().strip()
             token = token_entry.get().strip()
@@ -456,7 +501,8 @@ class ParserApp:
                     for line in copy_to_local_at_type.main(login, password, token):
                         log_area.insert(tk.END, line + "\n")
                         log_area.see(tk.END)
-                        if "✅ Все файлы успешно скачаны и очищены." in line:
+                        if "✅ Все файлы" in line:
+                            time.sleep(1)
                             success = True
 
                     if success:
@@ -471,7 +517,7 @@ class ParserApp:
                     log_area.insert(tk.END, f"❌ Ошибка: {e}\n")
                     log_area.see(tk.END)
                     download_btn.config(state=tk.NORMAL)  # 🔹 разблокируем кнопку, если ошибка
-                    # delete_btn.config(state=tk.NORMAL)
+                    messagebox.showerror("Ошибка!", "Скачивание не удалось!", parent=win)
 
             threading.Thread(target=worker, daemon=True).start()
 
