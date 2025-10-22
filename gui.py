@@ -22,6 +22,7 @@ PREFIX_LABELS = {
     "Сибирь": "SINO-DC",
 }
 
+
 PLATFORM_GROUPS = {
     "Cisco ASA": ["Cisco ASA"],
     "Cisco Firepower": ["Cisco FXOS"],
@@ -262,7 +263,7 @@ class ParserApp:
 
         self.strict_var = tk.BooleanVar(value=False)
         tk.Checkbutton(input_frame, text="Строгое соответствие",bg="#f0f0f0", highlightthickness=0,
-                       variable=self.strict_var).grid(row=2, column=0, columnspan=2, sticky="w", padx=(0, 5), pady=(0, 5))
+                       variable=self.strict_var).grid(row=2, column=0, columnspan=2, sticky="w", padx=(0, 5), pady=(5, 3))
 
         self.src_or_dst_var = tk.BooleanVar(value=False)
         src_or_dst_check = tk.Checkbutton(
@@ -278,7 +279,7 @@ class ParserApp:
 
         # tk.LabelFrame(frame, text="Фильтр по префиксам файлов:")
         prefix_frame = tk.LabelFrame(frame, text="Фильтр по регионам:",bg="#f0f0f0")
-        prefix_frame.grid(row = 0, column = 1, sticky = "nw", padx = (10, 10))
+        prefix_frame.grid(row = 0, column = 1, sticky = "nw", padx = 10)
 
         self.prefix_vars = {}
         col = 0
@@ -293,7 +294,7 @@ class ParserApp:
                 col = 0
                 row += 1
         self.all_regions_var = tk.BooleanVar(value=True)
-        
+
         all_regions_cb = tk.Checkbutton(
             prefix_frame,
             text="Все",
@@ -302,7 +303,7 @@ class ParserApp:
             variable=self.all_regions_var,
             command=lambda: toggle_all(list(self.prefix_vars.values()), self.all_regions_var)
         )
-        all_regions_cb.grid(row=row + 1, column=0, sticky="w", padx=5, pady=(5, 0))
+        all_regions_cb.grid(row=row + 1, column=0, sticky="nw", padx=5, pady=(5, 0))
 
 
         self.platform_vars = {}
@@ -328,10 +329,13 @@ class ParserApp:
             variable=self.all_platforms_var,
             command=lambda: toggle_all(list(self.platform_vars.values()), self.all_platforms_var)
         )
-        all_platforms_cb.grid(row=row + 1, column=0, sticky="w", padx=5, pady=(5, 0))
+        all_platforms_cb.grid(row= row + 1, column=0, sticky="w", padx=5, pady=(5, 0))
         # Кнопка поиска
         self.search_btn = tk.Button(frame, text="Поиск", command=self.run_search)
         self.search_btn.grid(row=4, column=0, columnspan=2, pady=10,sticky="w", padx=500)
+
+        self.root.bind("<Control-Shift-f>", lambda event: self.run_search())
+        self.root.bind("<Control-Shift-F>", lambda event: self.run_search())
 
         # Окно вывода
         self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=133, height=31.1,state="disabled")
@@ -342,6 +346,10 @@ class ParserApp:
                                     command=self.delete_config_folder)
         self.delete_btn.grid(row=6, column=1, columnspan=2,padx=470, pady=(5, 0), sticky="w")
 
+        self.root.bind("<Control-Shift-s>", lambda event: self.save_output())
+        self.root.bind("<Control-Shift-S>", lambda event: self.save_output())
+        self.root.bind("<Control-Shift-d>", lambda event: self.delete_config_folder())
+        self.root.bind("<Control-Shift-D>", lambda event: self.delete_config_folder())
 
     def run_search(self):
 
@@ -450,8 +458,6 @@ class ParserApp:
         win.resizable(False, False)  # запрет изменения размера
         for widget in self.root.winfo_children():
             widget.destroy()
-
-
 
         win = tk.Frame(self.root, padx=10, pady=10,bg="#f0f0f0")
         win.pack(fill="both", expand=True)

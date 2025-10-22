@@ -166,12 +166,12 @@ def main(gitlab_login, gitlab_password, netbox_token):
             # stderr=subprocess.STDOUT,
             text=True,
             capture_output = True,
-            creationflags = subprocess.CREATE_NO_WINDOW
+            # creationflags = subprocess.CREATE_NO_WINDOW
         )
         # logs.append(result.stdout)
 
         if result.returncode != 0:
-            yield ("❌ Ошибка при клонировании репозитория.")
+            yield ("❌ Ошибка при клонировании репозитория.\nПроверьте логин, пароль и токен.")
             return
         yield (f"Файлы успешно скачаны...")
         time.sleep(1)
@@ -219,7 +219,8 @@ def main(gitlab_login, gitlab_password, netbox_token):
         # return True, logs
 
     except Exception as e:
-        yield (f"\n❌ Ошибка: {e}")
+        if 'No such file' or 'FileNotFoundError' in e:
+            yield (f"\n❌ Не найден установленный git.")
         # return False, logs
 
 

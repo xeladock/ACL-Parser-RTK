@@ -13,10 +13,10 @@ output_dir = "collected_files_clear"
 
 PREFIX_LABELS = {
     "Волга": "PRNG-DC",
-    "ДВ": "DVPR-DC",
-    "СЗ": "SZSP-DC",
+    "Дальний Восток": "DVPR-DC",
+    "Северо-Запад": "SZSP-DC",
     "Центр": "CEMO-DC",
-    "КЦ": "CEMS-DC",
+    "Корпоративный Центр": "CEMS-DC",
     "Урал": "UREK-DC",
     "Юг": "UKFR-DC",
     "Сибирь": "SINO-DC",
@@ -45,7 +45,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_m
             dd[root.split(os.sep)[-1]].append(file)
 
     results = []
-    print(dd)
+    # print(dd)
     # --- парсинг по платформам ---
     for k, v in dd.items():
         if allowed_platforms and k not in allowed_platforms:
@@ -61,7 +61,6 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_m
         if k in ('Cisco ASA', 'Cisco FXOS', 'Cisco PIX'):
             # print(k ,v)
             for vv in v:
-                print(k)
                 res = CiscoASAParser3.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
                     yield(f"----{k} {region(vv)}----")
