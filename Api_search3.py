@@ -12,14 +12,14 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 output_dir = "collected_files_clear"
 
 PREFIX_LABELS = {
-    "Волга": "PRNG-DC",
-    "Дальний Восток": "DVPR-DC",
-    "Северо-Запад": "SZSP-DC",
-    "Центр": "CEMO-DC",
-    "Корпоративный Центр": "CEMS-DC",
-    "Урал": "UREK-DC",
-    "Юг": "UKFR-DC",
-    "Сибирь": "SINO-DC",
+    "(Волга)": "PRNG-DC",
+    "(Дальний Восток)": "DVPR-DC",
+    "(Северо-Запад)": "SZSP-DC",
+    "(Центр)": "CEMO-DC",
+    "(Корпоративный Центр)": "CEMS-DC",
+    "(Урал)": "UREK-DC",
+    "(Юг)": "UKFR-DC",
+    "(Сибирь)": "SINO-DC",
 }
 
 
