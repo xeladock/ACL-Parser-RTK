@@ -320,7 +320,7 @@ class ParserApp:
             command=self.reverse_ips,
             bg="#e0e0e0"
         )
-        self.reverse_btn.grid(row=2, column=0, columnspan=2, pady=(1, 0), padx=(270, 0))
+        self.reverse_btn.grid(row=2, column=0, columnspan=2, pady=(2, 0), padx=(285, 0))
         # reverse_btn.grid(row=1, column=2, padx=(10, 0))
 
         self.strict_var = tk.BooleanVar(value=False)
