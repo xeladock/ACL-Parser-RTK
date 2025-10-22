@@ -39,21 +39,39 @@ PLATFORM_GROUPS = {
 
 def add_placeholder(entry, placeholder="any", color="gray"):
     """Добавляет серый placeholder, который исчезает при вводе."""
-    default_fg = entry.cget("fg")
+    # default_fg = entry.cget("fg")
 
     def on_focus_in(event):
-        if entry.get() == placeholder and entry.cget("fg") == color:
+        if entry.get() == placeholder and entry.cget("fg") == "gray":
             entry.delete(0, tk.END)
-            entry.config(fg=default_fg)
+            # entry.insert(0, placeholder)
+            entry.config(fg="black")
+        if entry.get() == placeholder and entry.cget("fg") == "black":
+            entry.delete(0, tk.END)
+            entry.insert(0, placeholder)
+            # entry.delete(0, tk.END)
+            entry.config(fg="gray")
+        if entry.get() != placeholder and entry.cget("fg") == "gray":
+            # entry.delete(0, tk.END)
+            entry.config(fg="black")
+
 
     def on_focus_out(event):
-        if not entry.get().strip():
+        if not entry.get().strip() or entry.get() == "any":
+            entry.delete(0, tk.END)
             entry.insert(0, placeholder)
-            entry.config(fg=color)
+            entry.config(fg="gray")
+        if entry.get() != "any":
+            # entry.delete(0, tk.END)
+            # entry.insert(0, placeholder)
+            entry.config(fg="black")
+        # if not entry.get() == placeholder and entry.cget("fg") == "black":
+        #     entry.delete(0, tk.END)
+        #     entry.config(fg="gray")
 
     # Инициализация placeholder при запуске
     entry.insert(0, placeholder)
-    entry.config(fg=color)
+    entry.config(fg="gray")
 
     # Привязки событий
     entry.bind("<FocusIn>", on_focus_in)
@@ -137,6 +155,7 @@ def fix_entry_shortcuts(entry_widget):
     entry_widget.bind("<Control-X>", cut)
 
 
+
 class ParserApp:
     # LIGHT_BG = "#f0f0f0"
     def __init__(self, root):
@@ -164,6 +183,8 @@ class ParserApp:
 
         def sanitize(name):
             return rs(r'[\\/:*?"<>|]', '_', name)
+
+
 
         src_ip = sanitize(src_ip)
         dst_ip = sanitize(dst_ip)
@@ -216,6 +237,36 @@ class ParserApp:
             widget.destroy()
         self.open_download_window()
 
+    def update_placeholder(self, entry, text="any"):
+        """Устанавливает серый placeholder."""
+        entry.insert(0, text)
+        entry.config(fg="gray")
+    def reverse_ips(self):
+        if not self.src_entry.get().strip():
+            add_placeholder(self.src_entry, "any","gray")
+        if not self.dst_entry.get().strip():
+            add_placeholder(self.dst_entry, "any","gray")
+        # validate_ip_or_network()
+        """Меняет местами значения Source IP и Destination IP."""
+        src_value = self.src_entry.get()
+        dst_value = self.dst_entry.get()
+
+        # if not validate_ip_or_network(src_value):
+        #     messagebox.showerror("Ошибка!", f"Неверный формат Source IP: {src_value}")
+        #     # add_placeholder(src_value, "any", "gray")
+        #     return
+        # if not validate_ip_or_network(dst_value):
+        #     messagebox.showerror("Ошибка!", f"Неверный формат Destination IP: {dst_value}")
+        #     # add_placeholder(dst_value, "any", "gray")
+        #     return
+
+        # Меняем местами
+        self.src_entry.delete(0, tk.END)
+        self.src_entry.insert(0, dst_value)
+
+        self.dst_entry.delete(0, tk.END)
+        self.dst_entry.insert(0, src_value)
+        #
 
     # ---------------- MAIN WINDOW ----------------
     def build_main_window(self):
@@ -261,9 +312,20 @@ class ParserApp:
         limit_entry_length(self.dst_entry, 50)
         add_placeholder(self.dst_entry, "any", "gray")
 
+
+
+        self.reverse_btn = tk.Button(
+            input_frame,
+            text="Реверс",
+            command=self.reverse_ips,
+            bg="#e0e0e0"
+        )
+        self.reverse_btn.grid(row=2, column=0, columnspan=2, pady=(1, 0), padx=(270, 0))
+        # reverse_btn.grid(row=1, column=2, padx=(10, 0))
+
         self.strict_var = tk.BooleanVar(value=False)
         tk.Checkbutton(input_frame, text="Строгое соответствие",bg="#f0f0f0", highlightthickness=0,
-                       variable=self.strict_var).grid(row=2, column=0, columnspan=2, sticky="w", padx=(0, 5), pady=(5, 3))
+                       variable=self.strict_var).grid(row=2, column=0, columnspan=2, sticky="w", padx=(0, 5), pady=(5, 0))
 
         self.src_or_dst_var = tk.BooleanVar(value=False)
         src_or_dst_check = tk.Checkbutton(
@@ -274,7 +336,7 @@ class ParserApp:
             variable=self.src_or_dst_var,
             bg="#f0f0f0"
         )
-        src_or_dst_check.grid(row=3, column=0, columnspan=2, sticky="w", padx=(1, 5), pady=(0, 5))
+        src_or_dst_check.grid(row=3, column=0, columnspan=2, sticky="w", padx=(1, 5), pady=(0, 2))
         # 🔹 Группа чекбоксов
 
         # tk.LabelFrame(frame, text="Фильтр по префиксам файлов:")
@@ -350,6 +412,8 @@ class ParserApp:
         self.root.bind("<Control-Shift-S>", lambda event: self.save_output())
         self.root.bind("<Control-Shift-d>", lambda event: self.delete_config_folder())
         self.root.bind("<Control-Shift-D>", lambda event: self.delete_config_folder())
+        self.root.bind("<Control-Shift-r>", lambda event: self.reverse_ips())
+        self.root.bind("<Control-Shift-R>", lambda event: self.reverse_ips())
 
     def run_search(self):
 
@@ -422,6 +486,7 @@ class ParserApp:
         self.search_btn.config(state=tk.DISABLED)
         self.save_btn.config(state=tk.DISABLED)
         self.delete_btn.config(state=tk.DISABLED)
+        self.reverse_btn.config(state=tk.DISABLED)
 
         def add_result(res):
             for line in res:
@@ -430,13 +495,22 @@ class ParserApp:
 
         def worker():
             if src_or_dst_mode:
-                if src_ip!="any": search_ip = src_ip
-                else:             search_ip = dst_ip
-                res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, strict_mode)
-                add_result(res)
-                self.output.insert(tk.END, "--Обратный поиск--\n\n")
-                res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, strict_mode)
-                add_result(res)
+                if src_ip!="any":
+                    search_ip = src_ip
+                # else:             search_ip = dst_ip
+                    res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, strict_mode)
+                    add_result(res)
+                    self.output.insert(tk.END, "--Обратный поиск--\n\n")
+                    res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, strict_mode)
+                    add_result(res)
+                else:
+                    search_ip = dst_ip
+                    # else:             search_ip = dst_ip
+                    res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, strict_mode)
+                    add_result(res)
+                    self.output.insert(tk.END, "--Обратный поиск--\n\n")
+                    res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, strict_mode)
+                    add_result(res)
             else:
                 res = Api_search3.main(src_ip, dst_ip, enabled_prefixes, enabled_platforms, strict_mode)
             add_result(res)
@@ -444,6 +518,7 @@ class ParserApp:
             self.search_btn.config(state=tk.NORMAL)
             self.save_btn.config(state=tk.NORMAL)
             self.delete_btn.config(state=tk.NORMAL)
+            self.reverse_btn.config(state=tk.NORMAL)
             self.output.config(state="disabled")
 
 
