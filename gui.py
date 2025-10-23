@@ -480,8 +480,10 @@ class ParserApp:
         self.bind_enter_to_button(self.search_btn)
 
         # Окно вывода
-        self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=133, height=31.1,state="disabled")
+        self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=133, height=31.1,state="disabled",takefocus=0)
         self.output.grid(row=5, column=0, columnspan=2, sticky="w", padx=5)
+
+
         self.save_btn = tk.Button(frame, text="Сохранить на диск", command=self.save_output)
         self.save_btn.grid(row=6, column=0, columnspan=2, padx=6,pady=(5,0), sticky="w")
         self.delete_btn = tk.Button(frame, text="Удалить папку конфигураций",
