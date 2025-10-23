@@ -37,6 +37,11 @@ PLATFORM_GROUPS = {
     ],
 }
 
+def bind_enter_to_button(self, button):
+    """Делает кнопку активируемой клавишей Enter."""
+    button.bind("<Return>", lambda event: button.invoke())      # Enter с основного блока
+    button.bind("<KP_Enter>", lambda event: button.invoke())
+
 def add_placeholder(entry, placeholder="any", color="gray"):
     """Добавляет серый placeholder, который исчезает при вводе."""
     # default_fg = entry.cget("fg")
@@ -47,8 +52,8 @@ def add_placeholder(entry, placeholder="any", color="gray"):
             # entry.insert(0, placeholder)
             entry.config(fg="black")
         if entry.get() == placeholder and entry.cget("fg") == "black":
-            entry.delete(0, tk.END)
-            entry.insert(0, placeholder)
+            # entry.delete(0, tk.END)
+            # entry.insert(0, placeholder)
             # entry.delete(0, tk.END)
             entry.config(fg="gray")
         if entry.get() != placeholder and entry.cget("fg") == "gray":
@@ -62,6 +67,10 @@ def add_placeholder(entry, placeholder="any", color="gray"):
             entry.insert(0, placeholder)
             entry.config(fg="gray")
         if entry.get() != "any":
+            # entry.delete(0, tk.END)
+            # entry.insert(0, placeholder)
+            entry.config(fg="black")
+        if entry.get() != "any" and entry.cget("fg") == "gray":
             # entry.delete(0, tk.END)
             # entry.insert(0, placeholder)
             entry.config(fg="black")
@@ -153,7 +162,6 @@ def fix_entry_shortcuts(entry_widget):
     entry_widget.bind("<Control-V>", paste)
     entry_widget.bind("<Control-x>", cut)
     entry_widget.bind("<Control-X>", cut)
-
 
 
 class ParserApp:
@@ -268,6 +276,73 @@ class ParserApp:
         self.dst_entry.insert(0, src_value)
         #
 
+    def bind_enter_to_button(self, button):
+        """Делает кнопку активируемой клавишей Enter."""
+        button.bind("<Return>", lambda event: button.invoke())  # Enter с основного блока
+        button.bind("<KP_Enter>", lambda event: button.invoke())
+
+    def show_temp_popup(self, text):
+        """
+        Маленькое всплывающее окно, исчезающее через 1 секунду.
+        """
+        popup = tk.Toplevel(self.root)
+        popup.overrideredirect(True)  # убираем рамку и заголовок
+        popup.configure(bg="#f0f0f0")
+
+        # Размер и позиция — центр окна
+        popup.geometry("+%d+%d" % (self.root.winfo_x() + 200, self.root.winfo_y() + 200))
+
+        label = tk.Label(popup, text=text, bg="#f0f0f0", fg="green", font=("Arial", 11, "bold"))
+        label.pack(padx=20, pady=10)
+
+        self.root.update_idletasks()
+        main_x = self.root.winfo_x()
+        main_y = self.root.winfo_y()
+        main_w = self.root.winfo_width()
+        main_h = self.root.winfo_height()
+        popup.update_idletasks()
+        popup_w = popup.winfo_reqwidth()
+        popup_h = popup.winfo_reqheight()
+
+        x = main_x + (main_w // 2) - (popup_w // 2)
+        y = main_y + (main_h // 2) - (popup_h // 2)
+        popup.geometry(f"+{x}+{y}")
+
+        # Автозакрытие через 1 секунду
+        popup.after(1000, popup.destroy)
+
+    def quick_save_output(self, event=None):
+        """
+        Быстрое сохранение вывода без диалога.
+        Файл сохраняется рядом с программой под именем src-dst-date.txt
+        """
+        content = self.output.get("1.0", tk.END).strip()
+        if not content:
+            messagebox.showinfo("Ой.", "Поле вывода пустое.")
+            return
+
+        # Формируем имя файла
+        src_ip = self.src_entry.get().strip() or "any"
+        dst_ip = self.dst_entry.get().strip() or "any"
+
+        # Заменяем недопустимые символы
+        src_ip = src_ip.replace("/", "_").replace("\\", "_")
+        dst_ip = dst_ip.replace("/", "_").replace("\\", "_")
+
+        now = datetime.now().strftime("%d-%m-%Y-%H-%M")
+        filename = f"{src_ip}-{dst_ip}-{now}.txt"
+
+        # Сохраняем в текущей директории
+        filepath = os.path.join(os.getcwd(), filename)
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(content)
+        except Exception as e:
+            messagebox.showerror("Ошибка сохранения", f"Не удалось сохранить файл:\n{e}")
+            return
+
+        # Показываем короткое уведомление
+        self.show_temp_popup("💾 Сохранено")
     # ---------------- MAIN WINDOW ----------------
     def build_main_window(self):
         for widget in self.root.winfo_children():
@@ -316,22 +391,24 @@ class ParserApp:
 
         self.reverse_btn = tk.Button(
             input_frame,
-            text="Реверс",
+            text="Реверс IP",
             command=self.reverse_ips,
             bg="#e0e0e0"
         )
-        self.reverse_btn.grid(row=2, column=0, columnspan=2, pady=(2, 0), padx=(285, 0))
+        self.reverse_btn.grid(row=2, column=0, columnspan=2, pady=(2, 0), padx=(270, 0))
         # reverse_btn.grid(row=1, column=2, padx=(10, 0))
 
         self.strict_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(input_frame, text="Строгое соответствие",bg="#f0f0f0", highlightthickness=0,
-                       variable=self.strict_var).grid(row=2, column=0, columnspan=2, sticky="w", padx=(0, 5), pady=(5, 0))
+        tk.Checkbutton(input_frame, text="Строгое соответствие",bg="#f0f0f0",
+                       highlightthickness=1,highlightbackground="#f0f0f0",
+                       variable=self.strict_var).grid(row=2, column=0, columnspan=2, sticky="w",
+                                                      padx=(0, 5), pady=(5, 0))
 
         self.src_or_dst_var = tk.BooleanVar(value=False)
         src_or_dst_check = tk.Checkbutton(
             input_frame,
             text="Source or Destination",
-            highlightthickness=0,  # убирает контур фокуса
+            highlightthickness=1,highlightbackground="#f0f0f0",
             bd=0,
             variable=self.src_or_dst_var,
             bg="#f0f0f0"
@@ -348,7 +425,8 @@ class ParserApp:
         row = 0
         for label, prefix in PREFIX_LABELS.items():
             var = tk.BooleanVar(value=True)
-            cb = tk.Checkbutton(prefix_frame, text=label,bg="#f0f0f0", highlightthickness=0, variable=var)
+            cb = tk.Checkbutton(prefix_frame, text=label,bg="#f0f0f0",
+                                highlightthickness=1, highlightbackground="#f0f0f0", variable=var)
             cb.grid(row=row, column=col, sticky="w", padx=5)
             self.prefix_vars[label] = var
             col += 1
@@ -360,7 +438,7 @@ class ParserApp:
         all_regions_cb = tk.Checkbutton(
             prefix_frame,
             text="Все",
-            highlightthickness=0,
+            highlightthickness=1,highlightbackground="#f0f0f0",
             bg="#f0f0f0",
             variable=self.all_regions_var,
             command=lambda: toggle_all(list(self.prefix_vars.values()), self.all_regions_var)
@@ -375,7 +453,8 @@ class ParserApp:
         col, row = 0, 0
         for label in PLATFORM_GROUPS.keys():
             var = tk.BooleanVar(value=True)
-            cb = tk.Checkbutton(platform_frame, text=label,bg="#f0f0f0", highlightthickness=0,variable=var)
+            cb = tk.Checkbutton(platform_frame, text=label,bg="#f0f0f0",
+                                highlightthickness=1,highlightbackground="#f0f0f0",variable=var)
             cb.grid(row=row, column=col, sticky="w", padx=5)
             self.platform_vars[label] = var
             col += 1
@@ -386,7 +465,7 @@ class ParserApp:
         all_platforms_cb = tk.Checkbutton(
             platform_frame,
             text="Все",
-            highlightthickness=0,
+            highlightthickness=1,highlightbackground="#f0f0f0",
             bg="#f0f0f0",
             variable=self.all_platforms_var,
             command=lambda: toggle_all(list(self.platform_vars.values()), self.all_platforms_var)
@@ -398,6 +477,7 @@ class ParserApp:
 
         self.root.bind("<Control-Shift-f>", lambda event: self.run_search())
         self.root.bind("<Control-Shift-F>", lambda event: self.run_search())
+        self.bind_enter_to_button(self.search_btn)
 
         # Окно вывода
         self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=133, height=31.1,state="disabled")
@@ -414,6 +494,13 @@ class ParserApp:
         self.root.bind("<Control-Shift-D>", lambda event: self.delete_config_folder())
         self.root.bind("<Control-Shift-r>", lambda event: self.reverse_ips())
         self.root.bind("<Control-Shift-R>", lambda event: self.reverse_ips())
+
+        self.root.bind("<Control-Shift-q>", self.quick_save_output)
+        self.root.bind("<Control-Shift-Q>", self.quick_save_output)
+
+        self.bind_enter_to_button(self.reverse_btn)
+        self.bind_enter_to_button(self.save_btn)
+        self.bind_enter_to_button(self.delete_btn)
 
     def run_search(self):
 
@@ -489,9 +576,21 @@ class ParserApp:
         self.reverse_btn.config(state=tk.DISABLED)
 
         def add_result(res):
+            buffer = ""
+            cnt=0
             for line in res:
-                self.output.insert(tk.END, line + "\n")
+                buffer += line + "\n"
+                cnt+=1
+                if cnt > 10:
+                    self.output.insert(tk.END, buffer)
+                    self.output.see(tk.END)
+                    # self.root.update()
+                    buffer = ""
+                    cnt=0
+            if buffer:
+                self.output.insert(tk.END, buffer)
                 self.output.see(tk.END)
+            self.root.update()
 
         def worker():
             if src_or_dst_mode:
@@ -501,6 +600,7 @@ class ParserApp:
                     res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, strict_mode)
                     add_result(res)
                     self.output.insert(tk.END, "--Обратный поиск--\n\n")
+                    # self.output.see(tk.END)
                     res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, strict_mode)
                     add_result(res)
                 else:
@@ -508,6 +608,7 @@ class ParserApp:
                     # else:             search_ip = dst_ip
                     res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, strict_mode)
                     add_result(res)
+                    # self.output.see(tk.END)
                     self.output.insert(tk.END, "--Обратный поиск--\n\n")
                     res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, strict_mode)
                     add_result(res)
@@ -571,37 +672,49 @@ class ParserApp:
                 messagebox.showerror("Ошибка", "Введите логин, пароль и токен!")
                 return
 
-            # log_area.insert(tk.END, "Начало скачивания...\n")
             log_area.see(tk.END)
+            download_btn.config(state=tk.DISABLED)
 
-            download_btn.config(state=tk.DISABLED)  # 🔹 блокируем кнопку
-            # delete_btn.config(state=tk.NORMAL)
-            def worker():
-                success = False
-                try:
-                    for line in copy_to_local_at_type.main(login, password, token):
-                        log_area.insert(tk.END, line + "\n")
-                        log_area.see(tk.END)
-                        if "✅ Все файлы" in line:
-                            time.sleep(1)
-                            success = True
-
-                    if success:
-                        messagebox.showinfo("Успех!", "Скачалось успешно!", parent=win)
-                        win.destroy()
-                        self.build_main_window()
-                    else:
-                        messagebox.showerror("Ошибка!", "Скачивание не удалось!", parent=win)
-                        download_btn.config(state=tk.NORMAL)
-
-                except Exception as e:
-                    log_area.insert(tk.END, f"❌ Ошибка: {e}\n")
+            def add_log(line):
+                def update_log():
+                    log_area.insert(tk.END, line + "\n")
                     log_area.see(tk.END)
-                    download_btn.config(state=tk.NORMAL)  # 🔹 разблокируем кнопку, если ошибка
-                    messagebox.showerror("Ошибка!", "Скачивание не удалось!", parent=win)
+                    log_area.update_idletasks()  # Для плавности
+
+                self.root.after(0, update_log)
+
+            def on_success():
+                def update_success():
+                    messagebox.showinfo("Успех!", "Скачалось успешно!", parent=win)
+                    win.destroy()
+                    self.build_main_window()
+
+                self.root.after(0, update_success)
+
+            def on_failure(error_msg):
+                def update_failure():
+                    messagebox.showerror("Ошибка!", error_msg, parent=win)
+                    download_btn.config(state=tk.NORMAL)
+
+                self.root.after(0, update_failure)
+
+            def worker():
+                try:
+                    success = False
+                    for line in copy_to_local_at_type.main(login, password, token):
+                        add_log(line)
+                        if  line.startswith("✅ Все файлы"):
+                            success = True
+                    if success:
+                        time.sleep(1)  # Если нужно
+                        on_success()
+                    else:
+                        on_failure("Скачивание не удалось!")
+                except Exception as e:
+                    add_log(f"❌ Ошибка: {e}")
+                    on_failure("Скачивание не удалось!")
 
             threading.Thread(target=worker, daemon=True).start()
-
         download_btn = tk.Button(win, text="Скачать", command=download)
         download_btn.grid(row=3, column=0, columnspan=2, pady=(13, 0))
 
