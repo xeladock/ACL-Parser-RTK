@@ -3,6 +3,8 @@ import sys
 import shutil
 import subprocess
 import re
+from math import trunc
+
 import requests
 import time
 # from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -215,13 +217,14 @@ def main(gitlab_login, gitlab_password, netbox_token):
         time.sleep(1)
         make_writable(CONFIG_DIR)
         time.sleep(1)
-        yield ("\n✅ Все файлы успешно скачаны и очищены.")
+        yield ("\n👍 Все файлы успешно скачаны и очищены.")
+        # return True
         # return True, logs
 
     except Exception as e:
         if 'No such file' or 'FileNotFoundError' in e:
             yield (f"\n❌ Не найден установленный git.")
-        # return False, logs
+        # return False
 
 
 # if __name__ == "__main__":

@@ -4,10 +4,11 @@ import os
 import threading
 from re import sub as rs
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, filedialog
+from tkinter import messagebox, scrolledtext, filedialog, Toplevel
 import Api_search3, copy_to_local_at_type
 from datetime import datetime
 import shutil
+import glossary
 
 CONFIG_DIR = "collected_files_clear"
 
@@ -36,6 +37,8 @@ PLATFORM_GROUPS = {
         "HP ProCurve", "Dell Networking OS", "Juniper Junos", "Eltex", "Cisco IOS XR", "Cisco PIX"
     ],
 }
+
+
 
 def bind_enter_to_button(self, button):
     """Делает кнопку активируемой клавишей Enter."""
@@ -177,6 +180,40 @@ class ParserApp:
             self.open_download_window()
         else:
             self.build_main_window()
+
+    def show_glossary(self):
+        """Открыть модальное окно с глоссарием (только для чтения)."""
+        text = glossary.GLOSSARY_TEXT
+
+        win = Toplevel(self.root)
+        win.title("Глоссарий")
+        win.transient(self.root)  # ставим над основным окном
+        win.resizable(True, True)
+        win.grab_set()
+        win.focus_set()
+        win.bind("<Escape>", lambda e: win.destroy())
+        # делаем модальным (чтобы нельзя было работать с main пока открыт)
+        # Опционально: фиксированный размер: win.geometry("600x400")
+
+        # scrolled text
+        st = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=80, height=26.5)
+        st.pack(fill="both", expand=True, padx=1, pady=1)
+        st.insert("1.0", text)
+        st.config(state="disabled")  # только для чтения
+
+
+        # Центрируем окно над родителем
+        self.root.update_idletasks()
+        win.update_idletasks()
+        rw = self.root.winfo_width();
+        rh = self.root.winfo_height()
+        rx = self.root.winfo_rootx();
+        ry = self.root.winfo_rooty()
+        ww = win.winfo_reqwidth();
+        wh = win.winfo_reqheight()
+        x = rx + (rw - ww) // 2
+        y = ry + (rh - wh) // 2
+        win.geometry(f"+{x}+{y}")
 
     def save_output(self):
         text = self.output.get("1.0", tk.END).strip()
@@ -486,6 +523,11 @@ class ParserApp:
 
         self.save_btn = tk.Button(frame, text="Сохранить на диск", command=self.save_output)
         self.save_btn.grid(row=6, column=0, columnspan=2, padx=6,pady=(5,0), sticky="w")
+
+        self.help_btn = tk.Button(frame, text="Инфо", command=self.show_glossary)
+        # позиционируй так, как нужно: тут пример - справа от save_btn
+
+        self.help_btn.grid(row=6,column=1,padx=120, pady=(5,0), sticky="w")
         self.delete_btn = tk.Button(frame, text="Удалить папку конфигураций",
                                     command=self.delete_config_folder)
         self.delete_btn.grid(row=6, column=1, columnspan=2,padx=470, pady=(5, 0), sticky="w")
@@ -496,9 +538,11 @@ class ParserApp:
         self.root.bind("<Control-Shift-D>", lambda event: self.delete_config_folder())
         self.root.bind("<Control-Shift-r>", lambda event: self.reverse_ips())
         self.root.bind("<Control-Shift-R>", lambda event: self.reverse_ips())
+        self.root.bind("<F1>", lambda e: self.show_glossary())
 
         self.root.bind("<Control-Shift-q>", self.quick_save_output)
         self.root.bind("<Control-Shift-Q>", self.quick_save_output)
+        self.root.bind("<Escape>", lambda e: self.root.destroy())
 
         self.bind_enter_to_button(self.reverse_btn)
         self.bind_enter_to_button(self.save_btn)
@@ -634,6 +678,7 @@ class ParserApp:
         win.configure(bg="#f0f0f0")
         win.geometry("600x800")  # фиксированный размер
         win.resizable(False, False)  # запрет изменения размера
+        self.root.bind("<Escape>", lambda e: self.root.destroy())
         for widget in self.root.winfo_children():
             widget.destroy()
 
@@ -660,9 +705,6 @@ class ParserApp:
         token_entry.grid(row=2, column=1,sticky="nw", padx=5)
         fix_entry_shortcuts(token_entry)
         limit_entry_length(token_entry,50)
-
-        log_area = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=135, height=35,state="disabled")
-        log_area.grid(row=4, column=0, columnspan=2, pady=10)
 
         def download():
             log_area.config(state="normal")
@@ -697,6 +739,7 @@ class ParserApp:
                 def update_failure():
                     messagebox.showerror("Ошибка!", error_msg, parent=win)
                     download_btn.config(state=tk.NORMAL)
+                    log_area.config(state="disabled")
 
                 self.root.after(0, update_failure)
 
@@ -705,10 +748,11 @@ class ParserApp:
                     success = False
                     for line in copy_to_local_at_type.main(login, password, token):
                         add_log(line)
-                        if  line.startswith("✅ Все файлы"):
+                        if line.startswith("\n👍 Все"):
+                            time.sleep(0.5)
                             success = True
                     if success:
-                        time.sleep(1)  # Если нужно
+                        # time.sleep(1)  # Если нужно
                         on_success()
                     else:
                         on_failure("Скачивание не удалось!")
@@ -717,8 +761,15 @@ class ParserApp:
                     on_failure("Скачивание не удалось!")
 
             threading.Thread(target=worker, daemon=True).start()
+
         download_btn = tk.Button(win, text="Скачать", command=download)
         download_btn.grid(row=3, column=0, columnspan=2, pady=(13, 0))
+        self.root.bind("<Control-Shift-f>", lambda event: download())
+        self.root.bind("<Control-Shift-F>", lambda event: download())
+        self.bind_enter_to_button(download_btn)
+
+        log_area = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=135, height=35,state="disabled",takefocus=0)
+        log_area.grid(row=4, column=0, columnspan=2, pady=10)
 
 if __name__ == "__main__":
     root = tk.Tk()
