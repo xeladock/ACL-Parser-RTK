@@ -627,7 +627,7 @@ class ParserApp:
             for line in res:
                 buffer += line + "\n"
                 cnt+=1
-                if cnt > 10:
+                if cnt > 11:
                     self.output.insert(tk.END, buffer)
                     self.output.see(tk.END)
                     # self.root.update()
