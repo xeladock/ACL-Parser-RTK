@@ -5,6 +5,8 @@ from collections import defaultdict
 import re
 import os
 
+
+
 class CiscoIOSXEParser:
     def __init__(self, config_text):
         self.config_lines = config_text.splitlines()
