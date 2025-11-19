@@ -8,7 +8,50 @@ from tkinter import messagebox, scrolledtext, filedialog, Toplevel
 import Api_search3, copy_to_local_at_type
 from datetime import datetime
 import shutil
-import glossary
+# import glossary
+
+GLOSSARY_TEXT = """                     Здесь представлено описание функций программы.
+
+Поиск:
+  • Source IP — исходный IP-адрес или сеть (пустое поле означает 'any').
+  • Destination IP — целевой IP-адрес или сеть (пустое поле означает  'any').
+  • Реверc IP - кнопка меняющая местами объекты полей "Source IP" и "Destination IP".
+  • Строгое соответствие — если включено, ищется точное совпадение ip-адреса. Сети всегда ищутся строго.
+  • Source or Destination — режим, который ищет ip-адрес сразу в обоих направлениях.
+        Если указать адрес в "Source IP", то будет найдено соответствие сперва ip -> any, затем any -> ip.
+        Если указать адрес в "Destination IP", то наоборот, сперва any -> ip, затем ip -> any.
+        В этом режиме нельзя указать адрес сразу в обоих полях.
+
+Чекбоксы:
+  • Фильтр по регионам - позволяет выбрать конкретный регион поиска ACL.
+        Чекбокс "Все" активирует/деактивирует все регионы.
+  • Фильтр по одобрудованию - позволяет выбрать конкретный тип устройств для поиска ACL.
+        Чекбокс "Все" активирует/деактивирует все устройства. 
+    Должен быть выбран хотя бы один регион и устройство. В противном случае будет показано предупреждение.   
+
+
+Сохранение:
+  • Сохранить на диск — кнопка открывает диалоговое окно для сохранения вывода данных.
+        Если поле вывода пустое будет выведено предупреждение.
+
+Удаление:
+  • Удалить папку конфигураций — кнопка удаляет папку с конфигурациями "сollected_files_clear".
+        После удаления программа вернется в состояние ввода логина/пароля gitlab и netbox Token для повторной загрузки.
+
+Горячие клавиши:
+  • Tab - перемещение между элементами.
+  • Enter/Space (пробел) - выбор чекбоксов/активация действия кнопок.
+  • Ctrl + Shift + S - Сохранение вывода данных.
+  • Ctrl + Shift + Q - Быстрое сохранение вывода данных. Данные сохраняются в папку расположения программы.
+  • Ctrl + Shift + D - Удаление папки с конфигурациями устройств.
+  • Ctrl + Shift + F - Активация поиска/действие кнопки "Поиск".
+  • Ctrl + Shift + R - Реверс IP/дейстивие кнопки "Реверс IP".
+  • F1 - Вызов справки/Действие кнопки "Инфо"
+  • Escape - Закрыть окно.
+
+
+Версия: 1.17.2 / 06.11.25
+"""
 
 CONFIG_DIR = "collected_files_clear"
 
@@ -183,7 +226,7 @@ class ParserApp:
 
     def show_glossary(self):
         """Открыть модальное окно с глоссарием (только для чтения)."""
-        text = glossary.GLOSSARY_TEXT
+        text = GLOSSARY_TEXT
 
         win = Toplevel(self.root)
         win.title("Глоссарий")
@@ -196,7 +239,7 @@ class ParserApp:
         # Опционально: фиксированный размер: win.geometry("600x400")
 
         # scrolled text
-        st = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=80, height=26.5)
+        st = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=92, height=38.5)
         st.pack(fill="both", expand=True, padx=1, pady=1)
         st.insert("1.0", text)
         st.config(state="disabled")  # только для чтения
@@ -620,6 +663,7 @@ class ParserApp:
         self.save_btn.config(state=tk.DISABLED)
         self.delete_btn.config(state=tk.DISABLED)
         self.reverse_btn.config(state=tk.DISABLED)
+        self.help_btn.config(state=tk.DISABLED)
 
         def add_result(res):
             buffer = ""
@@ -666,6 +710,7 @@ class ParserApp:
             self.save_btn.config(state=tk.NORMAL)
             self.delete_btn.config(state=tk.NORMAL)
             self.reverse_btn.config(state=tk.NORMAL)
+            self.help_btn.config(state=tk.NORMAL)
             self.output.config(state="disabled")
 
 
