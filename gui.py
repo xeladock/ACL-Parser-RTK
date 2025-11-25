@@ -50,7 +50,7 @@ GLOSSARY_TEXT = """                     Здесь представлено оп
   • Escape - Закрыть окно.
 
 
-Версия: 1.17.2 / 06.11.25
+Версия: 1.17.3 / 24.11.25
 """
 
 CONFIG_DIR = "collected_files_clear"
@@ -62,7 +62,7 @@ PREFIX_LABELS = {
     "Центр": "CEMO-DC",
     "КЦ": "CEMS-DC",
     "Урал": "UREK-DC",
-    "Юг": "UKFR-DC",
+    "Юг": "UFKR-DC",
     "Сибирь": "SINO-DC",
 }
 

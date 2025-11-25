@@ -185,7 +185,7 @@ def main(gitlab_login, gitlab_password, netbox_token):
             for file in files:
 
                 if file.startswith(
-                        ("PRNG-DC", "DVPR-DC", "SZSP-DC", "CEMO-DC", "CEMS-DC", "UREK-DC", "UKFR-DC", "SINO-DC")):
+                        ("PRNG-DC", "DVPR-DC", "SZSP-DC", "CEMO-DC", "CEMS-DC", "UREK-DC", "UFKR-DC", "SINO-DC")):
                     src_path = os.path.join(root, file)
                     device_name = os.path.splitext(file)[0]
 
