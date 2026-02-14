@@ -3,10 +3,9 @@ import sys
 import shutil
 import subprocess
 import re
-from math import trunc
-
-
-
+import tempfile
+# from math import trunc
+from urllib.parse import quote
 import requests
 import time
 # from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -68,7 +67,6 @@ def make_writable(path):
 
 
 BASE_DIR = get_base_dir()
-CONFIG_DIR = os.path.join(BASE_DIR, "collected_files_clear")
 
 
 def get_device_platform(device_name, netbox_token):
@@ -108,7 +106,7 @@ def process_file(file_path, token):
     platform = get_device_platform(device_name, token)
     return file_path, platform
 
-def main(gitlab_login, gitlab_password, netbox_token):
+def main(gitlab_login, gitlab_password, netbox_token, box):
     """
     Скачивание конфигураций и подготовка структуры папок.
     Возвращает (success, logs)
@@ -124,108 +122,192 @@ def main(gitlab_login, gitlab_password, netbox_token):
     #         for name in dirs:
     #             dir_path = os.path.join(root, name)
     #             os.chmod(dir_path, os.stat.S_IWRITE)  # Используем stat.S_IWRITE
+    print(box)
+    username = gitlab_login
+    safe_password = quote(gitlab_password, safe='')
+    # repo_url = "https://configs.net.rt.ru/dc/configs.git"
 
-    def remove_dir_with_git(clone_dir):
-        time.sleep(2)
-        """Удаляет указанную директорию, включая папку .git"""
-        if os.path.exists(clone_dir):
-            make_writable(clone_dir)
-            time.sleep(2)
-            shutil.rmtree(clone_dir)
-            time.sleep(1)
-            # yield(f"Временная папка {clone_dir} успешно удалена.")
-        # else:
-        #     yield(f"Папка {clone_dir} не существует.")
-
-    try:
-        yield ("Старт процессов...")
-        time.sleep(1)
-        # 🔹 создаём папку назначения
-        if not os.path.exists(CONFIG_DIR):
-            os.makedirs(CONFIG_DIR, exist_ok=True)
-            yield (f"Создана папка для очистки данных {CONFIG_DIR} ")
-            time.sleep(1)
-        # else:
-        #     yield (f"Папка {CONFIG_DIR} уже существует, файлы будут обновлены")
-
-        # пример — клонирование репозитория GitLab
-        # замените url_repo и branch на свои
-        repo_url = f"https://{gitlab_login}:{gitlab_password}@configs.net.rt.ru/dc/configs.git"
-
-        clone_dir = os.path.join(BASE_DIR, "collected_files")
-
-        yield (f"Создана папка для репозитория {clone_dir}")
-        time.sleep(1)
-        yield (f"Скачиваем файлы с gitlab...")
-        time.sleep(1)
-        if os.path.exists(clone_dir):
-            make_writable(clone_dir)
-            shutil.rmtree(clone_dir)
-            time.sleep(2)
-
-        # yield (f"Скачиваем данные...")
-        result = subprocess.run(
-            ["git", "clone", "--depth=1", repo_url, clone_dir],
-            # stdout=subprocess.PIPE,
-            # stderr=subprocess.STDOUT,
-            text=True,
-            capture_output = True,
-            # creationflags = subprocess.CREATE_NO_WINDOW
-        )
-        # logs.append(result.stdout)
-
-        if result.returncode != 0:
-            yield ("❌ Ошибка при клонировании репозитория.\nПроверьте логин, пароль и токен.")
-            return
-        yield (f"Файлы успешно скачаны...")
-        time.sleep(1)
-        yield (f"Запускаем процесс очистки файлов... \n-------")
-        # 🔹 пример — перенос файлов из репозитория в папку CONFIG_DIR
-        for root, dirs, files in os.walk(clone_dir):
-            for file in files:
-
-                if file.startswith(
-                        ("PRNG-DC", "DVPR-DC", "SZSP-DC", "CEMO-DC", "CEMS-DC", "UREK-DC", "UFKR-DC", "SINO-DC")):
-                    src_path = os.path.join(root, file)
-                    device_name = os.path.splitext(file)[0]
-
-                    # определяем платформу через NetBox
-                    platform = get_device_platform(device_name, netbox_token)
-
-                    if not platform or not platform.strip():
-                        continue
-
-                    platform = platform.replace("/", os.sep)
-                    platform = re.sub(r'[<>:"/\\|?*]', '_', platform)
-                    platform_dir = os.path.join(CONFIG_DIR, platform)
-                    os.makedirs(platform_dir, exist_ok=True)
-
-                    dst_path = os.path.join(platform_dir, file)
-
-                    shutil.copy2(src_path, dst_path)
-                    yield (f"✅ [{platform}] → {dst_path}")
-        # 🔹 чистим временную папку
-        time.sleep(2)
-        git_folder = os.path.join(clone_dir, ".git")
-        if os.path.exists(git_folder):
+    # def remove_dir_with_git(rem_dir):
+    #     time.sleep(2)
+    #     print(rem_dir, "на удаление")
+    #     """Удаляет указанную директорию, включая папку .git"""
+    #     if os.path.exists(rem_dir):
+    #         make_writable(rem_dir)
+    #         time.sleep(2)
+    #         shutil.rmtree(rem_dir)
+    #         time.sleep(1)
+    #         # yield(f"Временная папка {clone_dir} успешно удалена.")
+    #     # else:
+    #     #     yield(f"Папка {clone_dir} не существует.")
+    #     yield ("Старт процессов...")
+    #     time.sleep(1)
+    #     if os.path.exists(rem_dir):
+    #         print("папка с файлами есть")
+    #         make_writable(rem_dir)
+    #         time.sleep(2)
+    #         shutil.rmtree(rem_dir)
+    #         time.sleep(2)
+    #     else:
+    #         os.mkdir(rem_dir, 0o755)
+    for check in box:
+        if check[0]:
+            CONFIG_DIR = os.path.join(BASE_DIR, "collected_files_clear", check[1])
             try:
-                remove_dir_with_git(clone_dir)
-                # shutil.rmtree(git_folder, onerror=remove_readonly)
-                # print("✅ Удалена .git")
-            except Exception as e:
-                yield f"❌ Ошибка при удалении {clone_dir}: {e}"
-                # print(f"❌ Ошибка при удалении .git: {e}")
-        # shutil.rmtree(clone_dir, ignore_errors=True)
-        time.sleep(1)
-        make_writable(CONFIG_DIR)
-        time.sleep(1)
-        yield ("\n👍 Все файлы успешно скачаны и очищены.")
-        # return True
-        # return True, logs
+                # 🔹 создаём папку назначения
+                if not os.path.exists(CONFIG_DIR):
+                    os.makedirs(CONFIG_DIR, exist_ok=True)
+                    yield (f"Создана папка для очистки данных {CONFIG_DIR} ")
+                    time.sleep(1)
+                # helper = f'helper=store --file=/tmp/git-credentials'
 
-    except Exception as e:
-        if 'No such file' or 'FileNotFoundError' in e:
-            yield (f"\n❌ Не найден установленный git.")
+
+                # def git_clone_with_temp_credentials(login, password, repo_url, clone_dir):
+                #     # Кроссплатформенное создание временного файла
+                #     fd, cred_path = tempfile.mkstemp(prefix="git-cred-", text=True)
+                #     os.close(fd)
+                #
+                #     try:
+                #         # Записываем учетку во временный файл
+                #         with open(cred_path, "w") as f:
+                #             f.write(f"https://{login}:{password}@configs.net.rt.ru\n")
+                #
+                #         # Удаляем старую директорию, если она есть
+                #         if os.path.exists(clone_dir):
+                #             shutil.rmtree(clone_dir)
+                #
+                #         # Запускаем git clone
+                #         result = subprocess.run(
+                #             [
+                #                 "git",
+                #                 "-c", f"credential.helper=store --file={cred_path}",
+                #                 "clone",
+                #                 "--depth=1",
+                #                 repo_url,
+                #                 clone_dir
+                #             ],
+                #             text=True,
+                #             capture_output=True,
+                #         )
+                #
+                #         return result.stdout, result.stderr, result.returncode
+                #
+                #     finally:
+                #         # Удаляем временный файл (Windows тоже позволяет удалить)
+                #         if os.path.exists(cred_path):
+                #             os.remove(cred_path)
+                # helper, cred_path = tempfile.mkstemp(prefix="git-cred-", text=True)
+                # os.close(helper)
+                # helper = f'credential.helper=store --file=/tmp/strdtds'
+                # password = safe_password
+                # пишем учётку в файл
+                # try:
+                #     os.remove("/tmp/strdtds")
+                # except: pass
+                # with open(cred_path, "w") as f:
+                #             f.write(f"https://{username}:{password}@configs.net.rt.ru\n")
+                # with open('/tmp/strdtds', 'w') as f:
+                #     f.write(f'https://{username}:{password}@configs.net.rt.ru\n')
+                # f.close()
+
+
+                #
+                clone_dir = os.path.join(BASE_DIR, "collected_files",check[1])
+                rem_dir = os.path.join(BASE_DIR, "collected_files")
+                yield (f"Создана папка для репозитория {clone_dir}")
+                time.sleep(1)
+                yield (f"Скачиваем файлы {check[1]} с gitlab...")
+                time.sleep(1)
+
+                add_url=""
+                if check[1] == "ЛВС":
+                    add_url = "lan"
+                elif check[1] == "ЦОД":
+                    add_url = "dc"
+                print(add_url)
+                repo_url = f"https://{username}:{safe_password}@configs.net.rt.ru/{add_url}/configs.git"
+                # print(repo_url)
+                # yield (f"Скачиваем данные...")
+                result = subprocess.run(
+                    [
+                        "git",
+                        # "-c", f"credential.helper=store --file={cred_path}",
+                        "clone",
+                        "--depth=1",
+                        repo_url,
+                        clone_dir
+                    ],
+                    text=True,
+                    capture_output=True,
+                )
+
+                # logs.append(result.stdout)
+                # try:
+                #     os.remove("/tmp/strdtds")
+                # except: pass
+                # if os.path.exists(cred_path):
+                #     os.remove(cred_path)
+
+                if result.returncode != 0:
+                    # yield ("❌ Ошибка при клонировании репозитория.\nПроверьте логин, пароль и токен.")
+                    # yield ("DEBUG MODE.")
+                    yield (result.stderr.strip())
+                    return
+                yield (f"Файлы {check[1]} успешно скачаны...")
+                time.sleep(1)
+                yield (f"Запускаем процесс очистки файлов {check[1]} ... \n-------")
+                # 🔹 пример — перенос файлов из репозитория в папку CONFIG_DIR
+                for root, dirs, files in os.walk(clone_dir):
+                    for file in files:
+
+                        if file.startswith(
+                                ("DV")):
+                                # ("PRNG-DC", "DVPR-DC", "SZSP-DC", "CEMO-DC", "CEMS-DC", "UREK-DC", "UFKR-DC", "SINO-DC")):
+                            src_path = os.path.join(root, file)
+                            device_name = os.path.splitext(file)[0]
+
+                            # определяем платформу через NetBox
+                            platform = get_device_platform(device_name, netbox_token)
+
+                            if not platform or not platform.strip():
+                                continue
+
+                            platform = platform.replace("/", os.sep)
+                            platform = re.sub(r'[<>:"/\\|?*]', '_', platform)
+                            platform_dir = os.path.join(CONFIG_DIR, platform)
+                            os.makedirs(platform_dir, exist_ok=True)
+
+                            dst_path = os.path.join(platform_dir, file)
+
+                            shutil.copy2(src_path, dst_path)
+                            yield (f"✅ [{platform}] → {dst_path}")
+                # 🔹 чистим временную папку
+
+                make_writable(rem_dir)
+                time.sleep(2)
+                shutil.rmtree(rem_dir)
+                time.sleep(1)
+                # git_folder = os.path.join(clone_dir, ".git")
+                # if os.path.exists(rem_dir):
+                #     try:
+                #         remove_dir_with_git(rem_dir)
+                #         # shutil.rmtree(git_folder, onerror=remove_readonly)
+                #         print("✅ Удалена .git")
+                #         print(rem_dir)
+                #     except Exception as e:
+                #         yield f"❌ Ошибка при удалении {clone_dir}: {e}"
+                        # print(f"❌ Ошибка при удалении .git: {e}")
+                # shutil.rmtree(clone_dir, ignore_errors=True)
+                # time.sleep(1)
+                make_writable(CONFIG_DIR)
+                time.sleep(1)
+                yield (f"\n👍 Все файлы {check[1]} успешно скачаны и очищены.")
+                # return True
+                # return True, logs
+
+            except Exception as e:
+                # if 'No such file' or 'FileNotFoundError' in e:
+                    # yield (f"\n❌ Не найден установленный git.")
+                    yield (e)
         # return False
 
 

@@ -13,7 +13,7 @@ output_dir = "collected_files_clear"
 
 PREFIX_LABELS = {
     "(Волга)": "PRNG-DC",
-    "(Дальний Восток)": "DVPR-DC",
+    "(Дальний Восток)": "DV",
     "(Северо-Запад)": "SZSP-DC",
     "(Центр)": "CEMO-DC",
     "(Корпоративный Центр)": "CEMS-DC",
@@ -27,9 +27,10 @@ def region(vv):
     region_name = next(
         (label for label, prefix in PREFIX_LABELS.items() if vv.startswith(prefix))
     )
+    # print(vv)
     return region_name
 
-def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_mode=False):
+def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_ues=None, strict_mode=False):
     if not os.path.exists(output_dir):
         yield  ["❌ Папка с конфигурациями не найдена"]
         return
@@ -39,72 +40,90 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, strict_m
 
     # скан папки
     for root, dirs, files in os.walk(output_dir):
+
+        parts = root.split(os.sep)
+
+        if root == output_dir and allowed_ues:
+            dirs[:] = [d for d in dirs if d in allowed_ues]
+            continue
+
+        # пропускаем корень collected_files_clear
+        if len(parts) < 3:
+            continue
+
+        loc = parts[-2]  # ЛВС / ЦОД
+        pl = parts[-1]  # платформа
+
+        # --- ФИЛЬТР УЭС ---
+        if allowed_ues and loc not in allowed_ues:
+            continue
+
         for file in files:
             if allowed_prefixes and not any(file.startswith(pref) for pref in allowed_prefixes):
                 continue
-            dd[root.split(os.sep)[-1]].append(file)
+
+            dd[(loc, pl)].append(file)
 
     results = []
-    # print(dd)
-    # --- парсинг по платформам ---
-    for k, v in dd.items():
-        if allowed_platforms and k not in allowed_platforms:
+    print(dd)
+    for (k1, k2), v in dd.items():
+        if allowed_platforms and k2 not in allowed_platforms:
             continue
-        if k == 'FortiOS':
+        if k2 == 'FortiOS':
             # print(k ,v)
             for vv in v:
                 res = FortiOSParser.from_local_file(vv, search_text[0], search_text[1],strict_mode=strict_mode)
                 # print(res)
                 if res:
-                    yield(f"----{k} {region(vv)}----")
+                    yield(f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
-        if k in ('Cisco ASA', 'Cisco FXOS', 'Cisco PIX'):
+        if k2 in ('Cisco ASA', 'Cisco FXOS', 'Cisco PIX'):
             # print(k ,v)
             for vv in v:
                 res = CiscoASAParser3.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k} {region(vv)}----")
+                    yield(f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
-        if k in ('Cisco IOS','B4COM BCOM-OS-DC','EdgeCore','IBM_Lenovo Network OS','HP ProCurve','Dell Networking OS') :
+        if k2 in ('Cisco IOS','B4COM BCOM-OS-DC','EdgeCore','IBM_Lenovo Network OS','HP ProCurve','Dell Networking OS') :
             for vv in v:
                 res = CiscoIOSParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k} {region(vv)}----")
+                    yield(f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
-        if k in ('Cisco IOS XE','Cisco IOS XR'):
+        if k2 in ('Cisco IOS XE','Cisco IOS XR'):
             for vv in v:
                 # print(vv)
                 res = CiscoIOSXEParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 # print(res)
                 if res:
-                    yield(f"----{k} {region(vv)}----")
+                    yield(f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
-        if k == 'Cisco NX-OS':
+        if k2 == 'Cisco NX-OS':
             for vv in v:
                 res = CiscoNexusParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k} {region(vv)}----")
+                    yield(f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
-        if k == 'Huawei VRP':
+        if k2 == 'Huawei VRP':
             for vv in v:
                 res = HuaweiParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k} {region(vv)}----")
+                    yield(f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
-        if k == 'Juniper Junos':
+        if k2 == 'Juniper Junos':
             for vv in v:
                 res = JuniperACLParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k} {region(vv)}----")
+                    yield (f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
-        if k == 'Eltex':
+        if k2 == 'Eltex':
             for vv in v:
                 res = EltexACLParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
-                    yield(f"----{k} {region(vv)}----")
+                    yield (f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
     return results

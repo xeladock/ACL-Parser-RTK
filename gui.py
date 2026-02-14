@@ -55,9 +55,14 @@ GLOSSARY_TEXT = """                     Здесь представлено оп
 
 CONFIG_DIR = "collected_files_clear"
 
+UES = {
+    "ЦОД": "ЦОД",
+    "ЛВС": "ЛВС",
+}
+
 PREFIX_LABELS = {
     "Волга": "PRNG-DC",
-    "ДВ": "DVPR-DC",
+    "ДВ": "DV",
     "СЗ": "SZSP-DC",
     "Центр": "CEMO-DC",
     "КЦ": "CEMS-DC",
@@ -75,6 +80,7 @@ PLATFORM_GROUPS = {
     "Cisco NX-OS": ["Cisco NX-OS"],
     "FortiOS": ["FortiOS"],
     "Huawei": ["Huawei VRP"],
+    # "Eltex":["Eltex"],
     "Прочие устройства": [   # всё остальное
         "B4COM BCOM-OS-DC", "EdgeCore", "IBM_Lenovo Network OS",
         "HP ProCurve", "Dell Networking OS", "Juniper Junos", "Eltex", "Cisco IOS XR", "Cisco PIX"
@@ -216,7 +222,7 @@ class ParserApp:
         self.all_regions_var = None
         self.root = root
         self.root.title("ACL Parser. Версия для AltLinux.")
-        self.root.geometry("1100x820")
+        self.root.geometry("1200x820")
         self.root.configure(bg="#f0f0f0")
         self.root.resizable(False, False)
         if not os.path.exists(CONFIG_DIR) or not os.listdir(CONFIG_DIR):
@@ -494,11 +500,46 @@ class ParserApp:
             bg="#f0f0f0"
         )
         src_or_dst_check.grid(row=3, column=0, columnspan=2, sticky="w", padx=(1, 5), pady=(0, 2))
+
+
         # 🔹 Группа чекбоксов
+
+        # UES
+        ues_frame = tk.LabelFrame(frame, text="УЭС:",bg="#f0f0f0")
+        ues_frame.grid(row = 0, column = 1, sticky = "nw", padx = 0)
+
+        self.ues_vars = {}
+        col = 0
+        row = 0
+        for label, ues in UES.items():
+            var = tk.BooleanVar(value=True)
+            cb = tk.Checkbutton(ues_frame, text=label,bg="#f0f0f0",
+                                highlightthickness=1, highlightbackground="#f0f0f0", variable=var)
+            cb.grid(row=row, column=col, sticky="w", padx=5)
+            self.ues_vars[label] = var
+            col += 1
+            if col >= 1:  # делаем таблицу 2 строки × 4 столбца
+                col = 0
+                row += 1
+        self.all_ues_var = tk.BooleanVar(value=True)
+
+
+        #
+        # all_regions_cb = tk.Checkbutton(
+        #     ues_frame,
+        #     text="Все",
+        #     highlightthickness=1,highlightbackground="#f0f0f0",
+        #     bg="#f0f0f0",
+        #     variable=self.all_regions_var,
+        #     command=lambda: toggle_all(list(self.prefix_vars.values()), self.all_regions_var)
+        # )
+        # all_regions_cb.grid(row=row + 1, column=0, sticky="nw", padx=5, pady=(5, 0))
+
+
 
         # tk.LabelFrame(frame, text="Фильтр по префиксам файлов:")
         prefix_frame = tk.LabelFrame(frame, text="Фильтр по регионам:",bg="#f0f0f0")
-        prefix_frame.grid(row = 0, column = 1, sticky = "nw", padx = 10)
+        prefix_frame.grid(row = 0, column = 1, sticky = "nw", padx = 73)
 
         self.prefix_vars = {}
         col = 0
@@ -528,7 +569,7 @@ class ParserApp:
 
         self.platform_vars = {}
         platform_frame = tk.LabelFrame(frame, text="Фильтр по оборудованию:",bg="#f0f0f0")
-        platform_frame.grid(row=0, column=1, sticky="nw",padx=320)
+        platform_frame.grid(row=0, column=1, sticky="nw",padx=375)
 
         col, row = 0, 0
         for label in PLATFORM_GROUPS.keys():
@@ -553,14 +594,14 @@ class ParserApp:
         all_platforms_cb.grid(row= row + 1, column=0, sticky="w", padx=5, pady=(5, 0))
         # Кнопка поиска
         self.search_btn = tk.Button(frame, text="Поиск", command=self.run_search)
-        self.search_btn.grid(row=4, column=0, columnspan=2, pady=10,sticky="w", padx=500)
+        self.search_btn.grid(row=4, column=0, columnspan=2, pady=10,sticky="w", padx=570)
 
         self.root.bind("<Control-Shift-f>", lambda event: self.run_search())
         self.root.bind("<Control-Shift-F>", lambda event: self.run_search())
         self.bind_enter_to_button(self.search_btn)
 
         # Окно вывода
-        self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=133, height=31.1,state="disabled",takefocus=0)
+        self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=145, height=31.1,state="disabled",takefocus=0)
         self.output.grid(row=5, column=0, columnspan=2, sticky="w", padx=5)
 
 
@@ -622,9 +663,22 @@ class ParserApp:
 
         # Собираем выбранные префиксы
 
-        # --- блок чекбоксов по регионам ---
+        # --- блок чекбоксов по УЭС ---
+        enabled_ues = [
+            UES[label]
+            for label, var in self.ues_vars.items()
+            if var.get()
+        ]
+        # enabled_ues = any(var.get() for var in self.ues_vars.values())
+        print(enabled_ues)
         enabled_region_labels = [label for label, var in self.prefix_vars.items() if var.get()]
         enabled_prefixes = [PREFIX_LABELS[label] for label in enabled_region_labels]
+        # print(enabled_ues)
+        if not enabled_ues:
+            messagebox.showerror("Ошибка", "Нужно выбрать УЭС!")
+            self.all_ues_var.set(False)
+            self.output.config(state="disabled")
+            return
 
         if not enabled_prefixes:
             messagebox.showerror("Ошибка", "Нужно выбрать хотя бы один регион!")
@@ -687,23 +741,23 @@ class ParserApp:
                 if src_ip!="any":
                     search_ip = src_ip
                 # else:             search_ip = dst_ip
-                    res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, strict_mode)
+                    res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
                     add_result(res)
                     self.output.insert(tk.END, "--Обратный поиск--\n\n")
                     # self.output.see(tk.END)
-                    res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, strict_mode)
+                    res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms,enabled_ues, strict_mode)
                     add_result(res)
                 else:
                     search_ip = dst_ip
                     # else:             search_ip = dst_ip
-                    res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, strict_mode)
+                    res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
                     add_result(res)
                     # self.output.see(tk.END)
                     self.output.insert(tk.END, "--Обратный поиск--\n\n")
-                    res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, strict_mode)
+                    res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
                     add_result(res)
             else:
-                res = Api_search3.main(src_ip, dst_ip, enabled_prefixes, enabled_platforms, strict_mode)
+                res = Api_search3.main(src_ip, dst_ip, enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
             add_result(res)
             self.output.insert(tk.END, "✅ Поиск завершен.\n")
             self.search_btn.config(state=tk.NORMAL)
@@ -745,24 +799,68 @@ class ParserApp:
         fix_entry_shortcuts(pass_entry)
         limit_entry_length(pass_entry,64)
 
-        tk.Label(win, text="NetBox API token:",bg="#f0f0f0").grid(row=2, column=0, sticky="e",padx=(0,5))
+        tk.Label(win, text="NetBox API token:",bg="#f0f0f0").grid(row=2, column=0, sticky="e",padx=(0,5), pady=5)
         token_entry = tk.Entry(win, width=60, show="*")
         token_entry.grid(row=2, column=1,sticky="nw", padx=5)
         fix_entry_shortcuts(token_entry)
         limit_entry_length(token_entry,50)
+
+        # чекбоксы для ЦОД/ЛВС
+        lvs_var = tk.BooleanVar(value=False)
+        dc_var = tk.BooleanVar(value=False)
+        choise_frame = tk.Frame(win, bg="#f0f0f0", bd=0, highlightthickness=0)
+        choise_frame.grid(row = 4, column = 0,columnspan=2, sticky = "")
+
+        tk.Label(choise_frame, text="ЦОД:", bg="#f0f0f0").grid(row=0, column=0, sticky="e", padx=0)
+        lvs_cb = tk.Checkbutton(
+            choise_frame,
+            variable=lvs_var,
+            bg="#f0f0f0",
+            activebackground="#f0f0f0",
+            highlightthickness=0,
+            bd=0,
+            padx=-2,
+            pady=0
+        )
+        lvs_cb.grid(row=0, column=1, sticky="w")
+
+        tk.Label(choise_frame, text="ЛВС:", bg="#f0f0f0").grid(row=0, column=2, sticky="e", padx=(10,0))
+        dc_cb = tk.Checkbutton(
+            choise_frame,
+            variable=dc_var,
+            bg="#f0f0f0",
+            activebackground="#f0f0f0",
+            highlightthickness=0,
+            bd=0,
+            padx=-2,
+            pady=0
+        )
+        dc_cb.grid(row=0, column=3, sticky="w")
+
 
         def download():
             log_area.config(state="normal")
             login = login_entry.get().strip()
             password = pass_entry.get().strip()
             token = token_entry.get().strip()
+            lvs = lvs_var.get()
+            dc = dc_var.get()
 
             if not login or not password or not token:
                 messagebox.showerror("Ошибка", "Введите логин, пароль и токен!")
                 return
 
+            if not lvs and not dc:
+                messagebox.showerror("Ошибка", "Выберите объект загрузки.")
+                return
+
+            box = [[dc, "ЦОД"],[lvs, "ЛВС"]]
+            # print(box, "1")
             log_area.see(tk.END)
+
             download_btn.config(state=tk.DISABLED)
+            lvs_cb.config(state=tk.DISABLED)
+            dc_cb.config(state=tk.DISABLED)
 
             def add_log(line):
                 def update_log():
@@ -774,7 +872,7 @@ class ParserApp:
 
             def on_success():
                 def update_success():
-                    messagebox.showinfo("Успех!", "Скачалось успешно!", parent=win)
+                    messagebox.showinfo("Ура!", "Скачалось успешно!", parent=win)
                     win.destroy()
                     self.build_main_window()
 
@@ -783,15 +881,16 @@ class ParserApp:
             def on_failure(error_msg):
                 def update_failure():
                     messagebox.showerror("Ошибка!", error_msg, parent=win)
+                    print(error_msg)
                     download_btn.config(state=tk.NORMAL)
                     log_area.config(state="disabled")
 
                 self.root.after(0, update_failure)
-
+            # print()
             def worker():
                 try:
                     success = False
-                    for line in copy_to_local_at_type.main(login, password, token):
+                    for line in copy_to_local_at_type.main(login, password, token, box):
                         add_log(line)
                         if line.startswith("\n👍 Все"):
                             time.sleep(0.5)
@@ -802,19 +901,47 @@ class ParserApp:
                     else:
                         on_failure("Скачивание не удалось!")
                 except Exception as e:
+                    print(e)
                     add_log(f"❌ Ошибка: {e}")
                     on_failure("Скачивание не удалось!")
 
             threading.Thread(target=worker, daemon=True).start()
 
+
+
+        choise_frame = tk.Frame(win, bg="#f0f0f0")
+        choise_frame.grid(row=4, column=0, columnspan=2, pady=(10,10))
+
+        frame1 = tk.Frame(choise_frame, bg="#f0f0f0")
+        frame1.pack(side="left", padx=0,pady=(0,0))  # ← расстояние между блоками
+
         download_btn = tk.Button(win, text="Скачать", command=download)
-        download_btn.grid(row=3, column=0, columnspan=2, pady=(13, 0))
+        download_btn.grid(row=5, column=0, columnspan=2, pady=(5, 5))  # немного сверху и снизу
+
+        # Frame под кнопкой
+        # choise_frame = tk.Frame(win, bg="#f0f0f0")
+        # choise_frame.grid(row=3, column=0, columnspan=2, pady=(0, 5))
+
+        # чекбоксы внутри frame через grid
+
+        # choise_frame = tk.LabelFrame(win, text="ЛВС:",bg="#f0f0f0")
+        # choise_frame.grid(row = 4, column = 0, sticky = "nw")
+
+
+        # print(ищч)
+        # if not box[0][0] and not box[1][0]:
+        #     messagebox.showerror("Ошибка", "Выберите объект загрузки.")
+        #     return
+
+
         self.root.bind("<Control-Shift-f>", lambda event: download())
         self.root.bind("<Control-Shift-F>", lambda event: download())
         self.bind_enter_to_button(download_btn)
 
-        log_area = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=135, height=35,state="disabled",takefocus=0)
-        log_area.grid(row=4, column=0, columnspan=2, pady=10)
+        log_area = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=135, height=33,state="disabled",takefocus=0)
+        # log_area.grid(row=5, column=0, columnspan=2, pady=10)
+        log_area.grid(row=6, column=0, columnspan=2, sticky="nsew", pady=10)
+        # win.grid_rowconfigure(5, weight=1)
 
 if __name__ == "__main__":
     root = tk.Tk()
