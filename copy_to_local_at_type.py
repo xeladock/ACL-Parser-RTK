@@ -65,9 +65,7 @@ def make_writable(path):
             except Exception as e:
                 yield (f"[WARN] chmod dir {dpath}: {e}")
 
-
 BASE_DIR = get_base_dir()
-
 
 def get_device_platform(device_name, netbox_token):
     # results = []

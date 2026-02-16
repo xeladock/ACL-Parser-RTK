@@ -5,6 +5,9 @@ import threading
 from re import sub as rs
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, filedialog, Toplevel
+
+# from paramiko.common import four_byte
+
 import Api_search3, copy_to_local_at_type
 from datetime import datetime
 import shutil
@@ -45,19 +48,20 @@ GLOSSARY_TEXT = """                     Здесь представлено оп
   • Ctrl + Shift + Q - Быстрое сохранение вывода данных. Данные сохраняются в папку расположения программы.
   • Ctrl + Shift + D - Удаление папки с конфигурациями устройств.
   • Ctrl + Shift + F - Активация поиска/действие кнопки "Поиск".
-  • Ctrl + Shift + R - Реверс IP/дейстивие кнопки "Реверс IP".
+  • Ctrl + Shift + E - Удаление IP/действие кнопки "Сброс IP".
+  • Ctrl + Shift + R - Реверс IP/действие кнопки "Реверс IP".
   • F1 - Вызов справки/Действие кнопки "Инфо"
   • Escape - Закрыть окно.
 
 
-Версия: 1.17.3 / 24.11.25
+Версия: 1.19.2 / 16.02.26
 """
 
 CONFIG_DIR = "collected_files_clear"
 
 UES = {
-    "ЦОД": "ЦОД",
     "ЛВС": "ЛВС",
+    "ЦОД": "ЦОД",
 }
 
 PREFIX_LABELS = {
@@ -71,7 +75,6 @@ PREFIX_LABELS = {
     "Сибирь": "SINO-DC",
 }
 
-
 PLATFORM_GROUPS = {
     "Cisco ASA": ["Cisco ASA"],
     "Cisco Firepower": ["Cisco FXOS"],
@@ -79,15 +82,13 @@ PLATFORM_GROUPS = {
     "Cisco IOS XE": ["Cisco IOS XE"],
     "Cisco NX-OS": ["Cisco NX-OS"],
     "FortiOS": ["FortiOS"],
-    "Huawei": ["Huawei VRP"],
-    # "Eltex":["Eltex"],
+    "Huawei": ["Huawei VRP", "Huawei VRP 2403"],
+    "Eltex":["Eltex"],
     "Прочие устройства": [   # всё остальное
         "B4COM BCOM-OS-DC", "EdgeCore", "IBM_Lenovo Network OS",
-        "HP ProCurve", "Dell Networking OS", "Juniper Junos", "Eltex", "Cisco IOS XR", "Cisco PIX"
+        "HP ProCurve", "Dell Networking OS", "Juniper Junos", "Cisco IOS XR", "Cisco PIX"
     ],
 }
-
-
 
 def bind_enter_to_button(self, button):
     """Делает кнопку активируемой клавишей Enter."""
@@ -229,7 +230,53 @@ class ParserApp:
             self.open_download_window()
         else:
             self.build_main_window()
+            self.create_menu()
 
+    def app_exit(self):
+        self.root.destroy()
+
+    def show_version(self):
+        messagebox.showinfo("Версия", "1.19.2. 16 февраля 2026 г.")
+
+    def create_menu(self):
+        print("окно")
+        from tkinter import messagebox, font
+        # menubar = tk.Menu(self.root)
+        # menubar = tk.Menu(self.root, bg="#f0f0f0", fg="black")
+
+        # --- Программа ---
+        menu_font = font.Font(family="Arial", size=9)
+        bg_color = "#f0f0f0"
+        fg_color = "black"
+
+        menubar = tk.Menu(self.root, bg=bg_color, fg=fg_color, font=menu_font)
+        program_menu = tk.Menu(menubar, tearoff=0, bg=bg_color, fg=fg_color, activebackground=bg_color)
+        help_menu = tk.Menu(menubar, tearoff=0, bg=bg_color, fg=fg_color, activebackground=bg_color)
+
+        menubar = tk.Menu(self.root, bg="#f0f0f0", fg="black",font=menu_font) # фон и текст
+
+        # program_menu = tk.Menu(menubar, tearoff=0, bg="#f0f0f0", fg="black") # activebackground="#d9d9d9"
+        # МЕНЮ ПРОГРАММА
+        menubar.add_cascade(label="Программа", menu=program_menu)
+
+
+        menubar.add_cascade(label="Справка", menu=help_menu)
+        # help_menu = tk.Menu(menubar, tearoff=0, bg="#f0f0f0", fg="black", activebackground="#d9d9d9")
+        # program_menu = tk.Menu(menubar, tearoff=0)
+        # program_menu = tk.Menu(menubar, tearoff=0, bg="#f0f0f0", bd=0, activebackground="#d9d9d9")
+        # program_menu.add_command(label="Выход", command=self.app_exit, background="#f0f0f0")
+        # меню1
+        program_menu.add_command(label="Сохранить", command=self.save_output, font=menu_font)
+        program_menu.add_command(label="Удалить конфигурацию", command=self.delete_config_folder, font=menu_font)
+        program_menu.add_command(label="Выход", command=self.app_exit, font=menu_font)
+        # --- МЕНЮ СПРАВВКА ---
+        # help_menu = tk.Menu(menubar, tearoff=0,bg="#f0f0f0", fg="black",font=menu_font)
+        help_menu.add_command(label="Глоссарий", command=self.show_glossary, font=menu_font)
+        help_menu.add_command(label="Версия", command=self.show_version,font=menu_font)
+
+
+        # прикрепляем к окну
+        self.root.config(menu=menubar)
     def show_glossary(self):
         """Открыть модальное окно с глоссарием (только для чтения)."""
         text = GLOSSARY_TEXT
@@ -254,11 +301,11 @@ class ParserApp:
         # Центрируем окно над родителем
         self.root.update_idletasks()
         win.update_idletasks()
-        rw = self.root.winfo_width();
+        rw = self.root.winfo_width()
         rh = self.root.winfo_height()
-        rx = self.root.winfo_rootx();
+        rx = self.root.winfo_rootx()
         ry = self.root.winfo_rooty()
-        ww = win.winfo_reqwidth();
+        ww = win.winfo_reqwidth()
         wh = win.winfo_reqheight()
         x = rx + (rw - ww) // 2
         y = ry + (rh - wh) // 2
@@ -277,7 +324,6 @@ class ParserApp:
 
         def sanitize(name):
             return rs(r'[\\/:*?"<>|]', '_', name)
-
 
 
         src_ip = sanitize(src_ip)
@@ -361,6 +407,12 @@ class ParserApp:
         self.dst_entry.delete(0, tk.END)
         self.dst_entry.insert(0, src_value)
         #
+
+    def clear_ips(self):
+        self.src_entry.delete(0, tk.END)
+        add_placeholder(self.src_entry, "any", "gray")
+        self.dst_entry.delete(0, tk.END)
+        add_placeholder(self.dst_entry, "any", "gray")
 
     def bind_enter_to_button(self, button):
         """Делает кнопку активируемой клавишей Enter."""
@@ -481,7 +533,17 @@ class ParserApp:
             command=self.reverse_ips,
             bg="#e0e0e0"
         )
-        self.reverse_btn.grid(row=2, column=0, columnspan=2, pady=(2, 0), padx=(270, 0))
+
+
+        self.clear_ip_btn = tk.Button(
+            input_frame,
+            text="Сброс IP",
+            command=self.clear_ips,
+            bg="#e0e0e0"
+        )
+
+        self.clear_ip_btn.grid(row=2, column=0, columnspan=2, pady=(2, 0), padx=(263, 0))
+        self.reverse_btn.grid(row=3, column=0, columnspan=2, pady=(2, 0), padx=(270, 0))
         # reverse_btn.grid(row=1, column=2, padx=(10, 0))
 
         self.strict_var = tk.BooleanVar(value=False)
@@ -601,25 +663,28 @@ class ParserApp:
         self.bind_enter_to_button(self.search_btn)
 
         # Окно вывода
-        self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=145, height=31.1,state="disabled",takefocus=0)
+        self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=145, height=31.5,state="disabled",takefocus=0)
         self.output.grid(row=5, column=0, columnspan=2, sticky="w", padx=5)
 
 
-        self.save_btn = tk.Button(frame, text="Сохранить на диск", command=self.save_output)
-        self.save_btn.grid(row=6, column=0, columnspan=2, padx=6,pady=(5,0), sticky="w")
+        # self.save_btn = tk.Button(frame, text="Сохранить на диск", command=self.save_output)
+        # self.save_btn.grid(row=6, column=0, columnspan=2, padx=6,pady=(5,0), sticky="w")
 
-        self.help_btn = tk.Button(frame, text="Инфо", command=self.show_glossary)
+        # self.help_btn = tk.Button(frame, text="Инфо", command=self.show_glossary)
         # позиционируй так, как нужно: тут пример - справа от save_btn
 
-        self.help_btn.grid(row=6,column=1,padx=120, pady=(5,0), sticky="w")
-        self.delete_btn = tk.Button(frame, text="Удалить папку конфигураций",
-                                    command=self.delete_config_folder)
-        self.delete_btn.grid(row=6, column=1, columnspan=2,padx=470, pady=(5, 0), sticky="w")
+        # self.help_btn.grid(row=6,column=1,padx=120, pady=(5,0), sticky="w")
+        # self.delete_btn = tk.Button(frame, text="Удалить папку конфигураций",
+        #                             command=self.delete_config_folder)
+        # self.delete_btn.grid(row=6, column=1, columnspan=2,padx=470, pady=(5, 0), sticky="w")
 
+        # комби
         self.root.bind("<Control-Shift-s>", lambda event: self.save_output())
         self.root.bind("<Control-Shift-S>", lambda event: self.save_output())
         self.root.bind("<Control-Shift-d>", lambda event: self.delete_config_folder())
         self.root.bind("<Control-Shift-D>", lambda event: self.delete_config_folder())
+        self.root.bind("<Control-Shift-e>", lambda event: self.clear_ips())
+        self.root.bind("<Control-Shift-E>", lambda event: self.clear_ips())
         self.root.bind("<Control-Shift-r>", lambda event: self.reverse_ips())
         self.root.bind("<Control-Shift-R>", lambda event: self.reverse_ips())
         self.root.bind("<F1>", lambda e: self.show_glossary())
@@ -627,10 +692,11 @@ class ParserApp:
         self.root.bind("<Control-Shift-q>", self.quick_save_output)
         self.root.bind("<Control-Shift-Q>", self.quick_save_output)
         self.root.bind("<Escape>", lambda e: self.root.destroy())
-
+        # кнопкиdelete_config_folder
         self.bind_enter_to_button(self.reverse_btn)
-        self.bind_enter_to_button(self.save_btn)
-        self.bind_enter_to_button(self.delete_btn)
+        self.bind_enter_to_button(self.clear_ip_btn)
+        # self.bind_enter_to_button(self.save_output)
+        # self.bind_enter_to_button(self.delete_config_folder)
 
     def run_search(self):
 
@@ -670,7 +736,7 @@ class ParserApp:
             if var.get()
         ]
         # enabled_ues = any(var.get() for var in self.ues_vars.values())
-        print(enabled_ues)
+        # print(enabled_ues)
         enabled_region_labels = [label for label, var in self.prefix_vars.items() if var.get()]
         enabled_prefixes = [PREFIX_LABELS[label] for label in enabled_region_labels]
         # print(enabled_ues)
@@ -701,7 +767,7 @@ class ParserApp:
         enabled_platforms = []
         for label in enabled_platform_labels:
             enabled_platforms.extend(PLATFORM_GROUPS[label])
-
+        # print(enabled_platforms)
         if not enabled_platforms:
             messagebox.showerror("Ошибка!", "Нужно выбрать хотя бы одну платформу!")
             self.all_platforms_var.set(False)
@@ -720,9 +786,13 @@ class ParserApp:
         self.help_btn.config(state=tk.DISABLED)
 
         def add_result(res):
+
+            # if len(res) == 0: self.output.insert(tk.END, "Ничего не найдено.\n")
             buffer = ""
             cnt=0
+            found = False
             for line in res:
+                found = True
                 buffer += line + "\n"
                 cnt+=1
                 if cnt > 11:
@@ -734,6 +804,8 @@ class ParserApp:
             if buffer:
                 self.output.insert(tk.END, buffer)
                 self.output.see(tk.END)
+            if not found:
+                self.output.insert(tk.END, "Ничего не найдено.\n\n")
             self.root.update()
 
         def worker():
@@ -745,7 +817,7 @@ class ParserApp:
                     add_result(res)
                     self.output.insert(tk.END, "--Обратный поиск--\n\n")
                     # self.output.see(tk.END)
-                    res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms,enabled_ues, strict_mode)
+                    res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
                     add_result(res)
                 else:
                     search_ip = dst_ip
@@ -758,7 +830,9 @@ class ParserApp:
                     add_result(res)
             else:
                 res = Api_search3.main(src_ip, dst_ip, enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
+                # if len(res) == 0: self.output.insert(tk.END, "Ничего не найдено.\n")
             add_result(res)
+            # if no res: self.output.insert(tk.END, "Ничего не найдено.\n")
             self.output.insert(tk.END, "✅ Поиск завершен.\n")
             self.search_btn.config(state=tk.NORMAL)
             self.save_btn.config(state=tk.NORMAL)
@@ -811,7 +885,7 @@ class ParserApp:
         choise_frame = tk.Frame(win, bg="#f0f0f0", bd=0, highlightthickness=0)
         choise_frame.grid(row = 4, column = 0,columnspan=2, sticky = "")
 
-        tk.Label(choise_frame, text="ЦОД:", bg="#f0f0f0").grid(row=0, column=0, sticky="e", padx=0)
+        tk.Label(choise_frame, text="ЛВС:", bg="#f0f0f0").grid(row=0, column=0, sticky="e", padx=0)
         lvs_cb = tk.Checkbutton(
             choise_frame,
             variable=lvs_var,
@@ -824,7 +898,7 @@ class ParserApp:
         )
         lvs_cb.grid(row=0, column=1, sticky="w")
 
-        tk.Label(choise_frame, text="ЛВС:", bg="#f0f0f0").grid(row=0, column=2, sticky="e", padx=(10,0))
+        tk.Label(choise_frame, text="ЦОД:", bg="#f0f0f0").grid(row=0, column=2, sticky="e", padx=(10,0))
         dc_cb = tk.Checkbutton(
             choise_frame,
             variable=dc_var,

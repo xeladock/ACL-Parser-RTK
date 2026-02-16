@@ -40,7 +40,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
 
     # скан папки
     for root, dirs, files in os.walk(output_dir):
-
+        print(root)
         parts = root.split(os.sep)
 
         if root == output_dir and allowed_ues:
@@ -106,7 +106,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
                     yield(f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
-        if k2 == 'Huawei VRP':
+        if k2 in ('Huawei VRP','Huawei VRP 2403'):
             for vv in v:
                 res = HuaweiParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
@@ -119,6 +119,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
                 if res:
                     yield (f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
+
         if k2 == 'Eltex':
             for vv in v:
                 res = EltexACLParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
