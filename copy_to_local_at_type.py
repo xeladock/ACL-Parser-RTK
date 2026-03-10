@@ -97,7 +97,7 @@ def get_device_platform(device_name, netbox_token):
 
     device = data['results'][0]
     platform = device.get('platform')
-    if platform['name'] in ('Cisco UCS', 'AlteonOS', 'Citrix MPX', 'IronWare', 'Cisco WLC'): return None
+    if platform['name'] in ('Cisco UCS', 'AlteonOS', 'Citrix MPX', 'IronWare', 'Cisco WLC','Cisco Small Business Software','Juniper Junos E-Series'): return None
     return platform['name'] if platform else None
 def process_file(file_path, token):
     device_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -120,7 +120,7 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
     #         for name in dirs:
     #             dir_path = os.path.join(root, name)
     #             os.chmod(dir_path, os.stat.S_IWRITE)  # Используем stat.S_IWRITE
-    print(box)
+    # print(box)
     username = gitlab_login
     safe_password = quote(gitlab_password, safe='')
     # repo_url = "https://configs.net.rt.ru/dc/configs.git"
@@ -221,7 +221,7 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
                     add_url = "lan"
                 elif check[1] == "ЦОД":
                     add_url = "dc"
-                print(add_url)
+                # print(add_url)
                 repo_url = f"https://{username}:{safe_password}@configs.net.rt.ru/{add_url}/configs.git"
                 # print(repo_url)
                 # yield (f"Скачиваем данные...")
@@ -258,7 +258,7 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
                     for file in files:
 
                         if file.startswith(
-                                ("DV")):
+                                ("CE", "SZ", "SI", "PR","UF","UK","DV")):
                                 # ("PRNG-DC", "DVPR-DC", "SZSP-DC", "CEMO-DC", "CEMS-DC", "UREK-DC", "UFKR-DC", "SINO-DC")):
                             src_path = os.path.join(root, file)
                             device_name = os.path.splitext(file)[0]

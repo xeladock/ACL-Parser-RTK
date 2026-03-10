@@ -4,22 +4,33 @@ import requests
 from urllib3.exceptions import InsecureRequestWarning
 from collections import defaultdict
 from class_resolver import (CiscoNexusParser, HuaweiParser, JuniperACLParser, FortiOSParser,
-                            CiscoIOSXEParser, CiscoIOSParser, EltexACLParser, CiscoASAParser3
+                            CiscoIOSXEParser, CiscoIOSParser, EltexACLParser, CiscoASAParser3,EltexESRParser
 )
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 output_dir = "collected_files_clear"
 
+# PREFIX_LABELS = {
+#     "(Волга)": "PRNG-DC",
+#     "(Дальний Восток)": "DV",
+#     "(Северо-Запад)": "SZSP-DC",
+#     "(Центр)": "CEMO-DC",
+#     "(Корпоративный Центр)": "CEMS-DC",
+#     "(Урал)": "UREK-DC",
+#     "(Юг)": "UFKR-DC",
+#     "(Сибирь)": "SI",
+# }
+
 PREFIX_LABELS = {
-    "(Волга)": "PRNG-DC",
+    "(Волга)": "PR",
     "(Дальний Восток)": "DV",
-    "(Северо-Запад)": "SZSP-DC",
-    "(Центр)": "CEMO-DC",
-    "(Корпоративный Центр)": "CEMS-DC",
-    "(Урал)": "UREK-DC",
-    "(Юг)": "UFKR-DC",
-    "(Сибирь)": "SINO-DC",
+    "(Северо-Запад)": "SZ",
+    "(Центр)": "CE",
+    "(Корпоративный Центр)": "CE",
+    "(Урал)": "UR",
+    "(Юг)": "UF",
+    "(Сибирь)": "SI",
 }
 
 
@@ -40,7 +51,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
 
     # скан папки
     for root, dirs, files in os.walk(output_dir):
-        print(root)
+        # print(root)
         parts = root.split(os.sep)
 
         if root == output_dir and allowed_ues:
@@ -57,15 +68,15 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
         # --- ФИЛЬТР УЭС ---
         if allowed_ues and loc not in allowed_ues:
             continue
-
+        # print(loc)
         for file in files:
             if allowed_prefixes and not any(file.startswith(pref) for pref in allowed_prefixes):
                 continue
 
             dd[(loc, pl)].append(file)
 
-    results = []
-    print(dd)
+    # results = []
+    # print(dd)
     for (k1, k2), v in dd.items():
         if allowed_platforms and k2 not in allowed_platforms:
             continue
@@ -124,10 +135,20 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
             for vv in v:
                 res = EltexACLParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
+                    # print(res)
+                    yield (f"----{k2} {k1} {region(vv)}----")
+                    yield(vv + ": \n" + "\n".join(res) + "\n")
+        if k2 == 'Eltex ESR':
+            print(v)
+            for vv in v:
+                res = EltexESRParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
+                print(res)
+                if res:
+
                     yield (f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
-    return results
+    # return results
 
 
 # if __name__ == "__main__":

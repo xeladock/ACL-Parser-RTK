@@ -64,15 +64,27 @@ UES = {
     "ЦОД": "ЦОД",
 }
 
+# PREFIX_LABELS = {
+#     "Волга": "PRNG-DC",
+#     "ДВ": "DV",
+#     "СЗ": "SZSP-DC",
+#     "Центр": "CEMO-DC",
+#     "КЦ": "CEMS-DC",
+#     "Урал": "UREK-DC",
+#     "Юг": "UFKR-DC",
+#     "Сибирь": "SI",
+# }
+
+
 PREFIX_LABELS = {
-    "Волга": "PRNG-DC",
+    "Волга": "PR",
     "ДВ": "DV",
-    "СЗ": "SZSP-DC",
-    "Центр": "CEMO-DC",
-    "КЦ": "CEMS-DC",
-    "Урал": "UREK-DC",
-    "Юг": "UFKR-DC",
-    "Сибирь": "SINO-DC",
+    "СЗ": "SZ",
+    "Центр": "CE",
+    "КЦ": "CE",
+    "Урал": "UR",
+    "Юг": "UF",
+    "Сибирь": "SI",
 }
 
 PLATFORM_GROUPS = {
@@ -84,6 +96,7 @@ PLATFORM_GROUPS = {
     "FortiOS": ["FortiOS"],
     "Huawei": ["Huawei VRP", "Huawei VRP 2403"],
     "Eltex":["Eltex"],
+    "Eltex ESR":["Eltex ESR"],
     "Прочие устройства": [   # всё остальное
         "B4COM BCOM-OS-DC", "EdgeCore", "IBM_Lenovo Network OS",
         "HP ProCurve", "Dell Networking OS", "Juniper Junos", "Cisco IOS XR", "Cisco PIX"
@@ -239,8 +252,8 @@ class ParserApp:
         messagebox.showinfo("Версия", "1.19.2. 16 февраля 2026 г.")
 
     def create_menu(self):
-        print("окно")
-        from tkinter import messagebox, font
+        # print("окно")
+        from tkinter import font
         # menubar = tk.Menu(self.root)
         # menubar = tk.Menu(self.root, bg="#f0f0f0", fg="black")
 
@@ -266,7 +279,7 @@ class ParserApp:
         # program_menu = tk.Menu(menubar, tearoff=0, bg="#f0f0f0", bd=0, activebackground="#d9d9d9")
         # program_menu.add_command(label="Выход", command=self.app_exit, background="#f0f0f0")
         # меню1
-        program_menu.add_command(label="Сохранить", command=self.save_output, font=menu_font)
+        program_menu.add_command(label="Сохранить на диск", command=self.save_output, font=menu_font)
         program_menu.add_command(label="Удалить конфигурацию", command=self.delete_config_folder, font=menu_font)
         program_menu.add_command(label="Выход", command=self.app_exit, font=menu_font)
         # --- МЕНЮ СПРАВВКА ---
@@ -328,11 +341,13 @@ class ParserApp:
 
         src_ip = sanitize(src_ip)
         dst_ip = sanitize(dst_ip)
-
+        # 123
 
         # формируем имя файла: src-dst-dd-mm-yyyy-hh-mm.txt
         timestamp = datetime.now().strftime("%d-%m-%Y-%H-%M")
-        filename = f"{src_ip}-{dst_ip}-{timestamp}.txt"
+        ss = self.src_or_dst_mode
+        if ss: filename = f"'SOD'-{src_ip}-{dst_ip}-{timestamp}.txt"
+        else: filename = f"{src_ip}-{dst_ip}-{timestamp}.txt"
 
         # спрашиваем у пользователя, куда сохранить (по умолчанию в текущую папку)
         filepath = filedialog.asksaveasfilename(
@@ -717,7 +732,7 @@ class ParserApp:
         if not dst_ip:
             dst_ip = "any"
         src_or_dst_mode = self.src_or_dst_var.get()
-
+        # 777
         if src_or_dst_mode and ((src_ip!="any" and dst_ip!="any") or (src_ip=="any" and dst_ip=="any")):
             messagebox.showerror("Ошибка!",
                                  f"Должен быть один адрес в поле Source ИЛИ Destination.")
@@ -735,6 +750,8 @@ class ParserApp:
             for label, var in self.ues_vars.items()
             if var.get()
         ]
+
+        # print(enabled_ues)
         # enabled_ues = any(var.get() for var in self.ues_vars.values())
         # print(enabled_ues)
         enabled_region_labels = [label for label, var in self.prefix_vars.items() if var.get()]
@@ -780,19 +797,22 @@ class ParserApp:
         strict_mode = self.strict_var.get()
 
         self.search_btn.config(state=tk.DISABLED)
-        self.save_btn.config(state=tk.DISABLED)
-        self.delete_btn.config(state=tk.DISABLED)
+        self.clear_ip_btn.config(state=tk.DISABLED)
+        # self.save_btn.config(state=tk.DISABLED)
+        # self.delete_btn.config(state=tk.DISABLED)
         self.reverse_btn.config(state=tk.DISABLED)
-        self.help_btn.config(state=tk.DISABLED)
-
+        # self.help_btn.config(state=tk.DISABLED)
+        # print(enabled_ues)
         def add_result(res):
-
+            src_or_dst_mode
             # if len(res) == 0: self.output.insert(tk.END, "Ничего не найдено.\n")
             buffer = ""
             cnt=0
-            found = False
+            # found = False
+            # print(Api_search3.main(loc))
+            # print(res)
             for line in res:
-                found = True
+                # found = True
                 buffer += line + "\n"
                 cnt+=1
                 if cnt > 11:
@@ -804,41 +824,55 @@ class ParserApp:
             if buffer:
                 self.output.insert(tk.END, buffer)
                 self.output.see(tk.END)
-            if not found:
-                self.output.insert(tk.END, "Ничего не найдено.\n\n")
+            # if not found:
+            #     self.output.insert(tk.END, "Ничего не найдено для .\n\n")
             self.root.update()
-
+        # 1234
+        from itertools import chain as chir
         def worker():
+
             if src_or_dst_mode:
                 if src_ip!="any":
                     search_ip = src_ip
-                # else:             search_ip = dst_ip
                     res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
-                    add_result(res)
+                    first = next(res, None)
+                    if first is None: self.output.insert(tk.END, f"Ничего не найдено для {search_ip} → any\n\n")
+                    else:  res = chir([first], res); add_result(res)
                     self.output.insert(tk.END, "--Обратный поиск--\n\n")
-                    # self.output.see(tk.END)
                     res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
-                    add_result(res)
+                    first = next(res, None)
+                    if first is None: self.output.insert(tk.END, f"Ничего не найдено для any → {search_ip} \n\n")
+                    else: res = chir([first], res); add_result(res)
                 else:
                     search_ip = dst_ip
-                    # else:             search_ip = dst_ip
                     res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
-                    add_result(res)
-                    # self.output.see(tk.END)
+                    first = next(res, None)
+                    if first is None: self.output.insert(tk.END, f"Ничего не найдено для any → {search_ip} \n\n")
+                    else: res = chir([first], res); add_result(res)
                     self.output.insert(tk.END, "--Обратный поиск--\n\n")
                     res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
-                    add_result(res)
+                    first = next(res, None)
+                    if first is None: self.output.insert(tk.END, f"Ничего не найдено для {search_ip} → any\n\n")
+                    else: res = chir([first], res); add_result(res)
             else:
                 res = Api_search3.main(src_ip, dst_ip, enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
-                # if len(res) == 0: self.output.insert(tk.END, "Ничего не найдено.\n")
-            add_result(res)
+                first = next(res, None)
+                if first is None: self.output.insert(tk.END, f"Ничего не найдено для {src_ip} → {dst_ip}\n\n")
+                else: res = chir([first], res); add_result(res)
+
+                # print('пять')
+                # print(len(list(res)))
+                # if len(res) == 0: self.output.insert(tk.END, "Ничего не найдено.н\n")
+
+
             # if no res: self.output.insert(tk.END, "Ничего не найдено.\n")
-            self.output.insert(tk.END, "✅ Поиск завершен.\n")
+            self.output.insert(tk.END, "✅ Поиск завершен.\n\n")
             self.search_btn.config(state=tk.NORMAL)
-            self.save_btn.config(state=tk.NORMAL)
-            self.delete_btn.config(state=tk.NORMAL)
+            self.clear_ip_btn.config(state = tk.NORMAL)
+            # self.save_btn.config(state=tk.NORMAL)
+            # self.delete_btn.config(state=tk.NORMAL)
             self.reverse_btn.config(state=tk.NORMAL)
-            self.help_btn.config(state=tk.NORMAL)
+            # self.help_btn.config(state=tk.NORMAL)
             self.output.config(state="disabled")
 
 
@@ -955,7 +989,7 @@ class ParserApp:
             def on_failure(error_msg):
                 def update_failure():
                     messagebox.showerror("Ошибка!", error_msg, parent=win)
-                    print(error_msg)
+                    # print(error_msg)
                     download_btn.config(state=tk.NORMAL)
                     log_area.config(state="disabled")
 
@@ -975,7 +1009,7 @@ class ParserApp:
                     else:
                         on_failure("Скачивание не удалось!")
                 except Exception as e:
-                    print(e)
+                    # print(e)
                     add_log(f"❌ Ошибка: {e}")
                     on_failure("Скачивание не удалось!")
 
