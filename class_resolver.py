@@ -2219,31 +2219,31 @@ class EltexESRParser:
     def _expand_service_group(self, group_name):
         """Возвращает список портов/диапазонов (пока как строки)"""
         return self.service_groups.get(group_name, ["any"])
-
-    def _ip_in_networks(self, ip_str, networks, strict_mode=False):
-        try:
-            if ip_str == "any":
-                return True
-            ip = ipaddress.ip_address(ip_str)
-            ip_net32 = ipaddress.ip_network(str(ip) + "/32", strict=False)
-            for net_str in networks:
-                if net_str == "any":
-                    if not strict_mode:
-                        return True
-                    continue
-                try:
-                    net = ipaddress.ip_network(net_str, strict=False)
-                    if strict_mode:
-                        if net == ip_net32:
-                            return True
-                    else:
-                        if ip in net:
-                            return True
-                except:
-                    continue
-            return False
-        except:
-            return False
+# v1
+#     def _ip_in_networks(self, ip_str, networks, strict_mode=False):
+#         try:
+#             if ip_str == "any":
+#                 return True
+#             ip = ipaddress.ip_address(ip_str)
+#             ip_net32 = ipaddress.ip_network(str(ip) + "/32", strict=False)
+#             for net_str in networks:
+#                 if net_str == "any":
+#                     if not strict_mode:
+#                         return True
+#                     continue
+#                 try:
+#                     net = ipaddress.ip_network(net_str, strict=False)
+#                     if strict_mode:
+#                         if net == ip_net32:
+#                             return True
+#                     else:
+#                         if ip in net:
+#                             return True
+#                 except:
+#                     continue
+#             return False
+#         except:
+#             return False
     # v1
     # def find_matches(self, src_ip, dst_ip=None, strict_mode=False):
     #     """
@@ -2315,7 +2315,7 @@ class EltexESRParser:
     #             results.append("  exit")  # для красоты
     #
     #     return tuple(results)
-    #v2+v3
+    #v2+v3 (стабильный)
     # def find_matches(self, src_ip, dst_ip=None, strict_mode=False):
     #     """
     #     Возвращает блоки rule, которые подходят под src_ip и dst_ip.
@@ -2396,26 +2396,172 @@ class EltexESRParser:
     #             results.append("  exit")
     #
     #     return tuple(results)
-    # v4
+
+
+    # v2 _ip_in_networks (для сетей)
+    def _ip_in_networks(self, query_str, networks, strict_mode=False):
+        """
+        query_str может быть:
+          - IP:          "10.59.28.17"      → считается как /32
+          - сеть:        "192.168.20.0/24"  → ищем точное совпадение сети (всегда строго)
+          - хост-сеть:   "185.10.60.70/32"  → считается как обычный IP (/32)
+
+        networks — список строк из object-group (например ["10.59.1.32/28", "10.59.46.17/32"])
+        """
+        if query_str == "any":
+            return True
+
+        try:
+            query_net = ipaddress.ip_network(query_str, strict=False)
+            is_network_search = (query_net.prefixlen != 32)  # если не /32 — это поиск сети → всегда строго
+
+            for net_str in networks:
+                if net_str == "any":
+                    # any в группе → подходит только если НЕ strict-режим И НЕ поиск по сети
+                    if is_network_search or strict_mode:
+                        continue
+                    return True
+
+                try:
+                    net = ipaddress.ip_network(net_str, strict=False)
+
+                    if is_network_search:
+                        # Поиск сети → только точное совпадение
+                        if net == query_net:
+                            return True
+                    else:
+                        # Поиск IP (/32) → обычная логика
+                        if strict_mode:
+                            if net == query_net:  # точное совпадение /32
+                                return True
+                        else:
+                            # вхождение IP в сеть
+                            ip = ipaddress.ip_address(query_net.network_address)
+                            if ip in net:
+                                return True
+                except ValueError:
+                    continue
+
+            return False
+        except ValueError:
+            # если query_str вообще не IP и не сеть — считаем не подходящим
+            return False
+    #     v1
+    # def find_matches(self, src_ip, dst_ip=None, strict_mode=False):
+    #     """
+    #     Логика поиска с учётом strict_mode:
+    #
+    #     strict_mode=True:
+    #     - Правило попадает ТОЛЬКО если есть match source-address и src_ip ТОЧНО равен одной из подсетей в группе
+    #     - Если dst_ip задан и не "any" — аналогично требуется match destination-address и точное совпадение
+    #     - Правила без match source-address (или без match destination-address при поиске dst) — полностью игнорируются
+    #     - Все строки description игнорируются
+    #
+    #     strict_mode=False:
+    #     - обычное вхождение IP в сеть (или any)
+    #     - отсутствие match source/destination = any (разрешено)
+    #     """
+    #     results = []
+    #
+    #     # Флаги: требовать ли наличие match source/destination в строгом режиме
+    #     require_src = strict_mode and src_ip != "any"
+    #     require_dst = strict_mode and dst_ip and dst_ip != "any"
+    #
+    #     for zone_pair, rule_blocks in self.zone_pairs.items():
+    #         matched_blocks = []
+    #
+    #         for rule_lines in rule_blocks:
+    #             src_groups = []
+    #             dst_groups = []
+    #             action = None
+    #             enabled = False
+    #             has_description = False
+    #
+    #             filtered_rule_lines = []
+    #
+    #             for ln in rule_lines:
+    #                 s = ln.strip()
+    #                 if s.startswith("description "):
+    #                     has_description = True
+    #                     continue  # пропускаем строку description
+    #                 filtered_rule_lines.append(ln)
+    #
+    #                 if s.startswith("action "):
+    #                     action = s.split("action ", 1)[1].strip()
+    #                 elif s.startswith("match source-address object-group "):
+    #                     src_groups.append(s.split("object-group ", 1)[1].strip())
+    #                 elif s.startswith("match destination-address object-group "):
+    #                     dst_groups.append(s.split("object-group ", 1)[1].strip())
+    #                 elif s == "enable":
+    #                     enabled = True
+    #
+    #             if not enabled or not action:
+    #                 continue
+    #
+    #             # В strict_mode: если требуется source-match, но его нет — пропускаем правило
+    #             if require_src and not src_groups:
+    #                 continue
+    #
+    #             # Аналогично для destination
+    #             if require_dst and not dst_groups:
+    #                 continue
+    #
+    #             # Проверяем source
+    #             src_ok = False
+    #             if not src_groups:
+    #                 # Нет ограничения → any
+    #                 src_ok = not require_src  # в strict_mode с конкретным IP → False
+    #             else:
+    #                 for g in src_groups:
+    #                     nets = self._expand_network_group(g)
+    #                     if self._ip_in_networks(src_ip, nets, strict_mode):
+    #                         src_ok = True
+    #                         break
+    #
+    #             # Проверяем destination
+    #             dst_ok = False
+    #             if dst_ip is None or dst_ip == "any":
+    #                 dst_ok = True
+    #             elif not dst_groups:
+    #                 dst_ok = not require_dst
+    #             else:
+    #                 for g in dst_groups:
+    #                     nets = self._expand_network_group(g)
+    #                     if self._ip_in_networks(dst_ip, nets, strict_mode):
+    #                         dst_ok = True
+    #                         break
+    #
+    #             if src_ok and dst_ok:
+    #                 # Добавляем отфильтрованные строки (без description)
+    #                 matched_blocks.extend(filtered_rule_lines)
+    #
+    #         if matched_blocks:
+    #             results.append(f"security zone-pair {zone_pair}")
+    #             results.extend(matched_blocks)
+    #             results.append("  exit")
+    #
+    #     return tuple(results)
+
+
+    # v4 (стабильный)
     def find_matches(self, src_ip, dst_ip=None, strict_mode=False):
         """
-        Логика поиска с учётом strict_mode:
+        Логика поиска:
 
-        strict_mode=True:
-        - Правило попадает ТОЛЬКО если есть match source-address и src_ip ТОЧНО равен одной из подсетей в группе
-        - Если dst_ip задан и не "any" — аналогично требуется match destination-address и точное совпадение
-        - Правила без match source-address (или без match destination-address при поиске dst) — полностью игнорируются
-        - Все строки description игнорируются
-
-        strict_mode=False:
-        - обычное вхождение IP в сеть (или any)
-        - отсутствие match source/destination = any (разрешено)
+        - Если src_ip или dst_ip — сеть (маска != 32) → поиск СТРОГОГО совпадения сети (независимо от strict_mode)
+        - Если src_ip / dst_ip — IP (/32 или без маски) → обычная проверка:
+            strict_mode=True  → точное совпадение подсети
+            strict_mode=False → вхождение в подсеть
+        - Правила без match source-address И без match destination-address — полностью игнорируются
+        - description-строки пропускаются
         """
         results = []
 
-        # Флаги: требовать ли наличие match source/destination в строгом режиме
-        require_src = strict_mode and src_ip != "any"
-        require_dst = strict_mode and dst_ip and dst_ip != "any"
+        # Флаги: требовать наличие match в строгом режиме для IP-поиска
+        require_src = strict_mode and src_ip != "any" and '/' not in src_ip or (
+            src_ip.endswith('/32') if '/' in src_ip else False)
+        require_dst = strict_mode and dst_ip and dst_ip != "any" and '/' not in dst_ip or (
+            dst_ip.endswith('/32') if dst_ip and '/' in dst_ip else False)
 
         for zone_pair, rule_blocks in self.zone_pairs.items():
             matched_blocks = []
@@ -2425,15 +2571,12 @@ class EltexESRParser:
                 dst_groups = []
                 action = None
                 enabled = False
-                has_description = False
-
                 filtered_rule_lines = []
 
                 for ln in rule_lines:
                     s = ln.strip()
                     if s.startswith("description "):
-                        has_description = True
-                        continue  # пропускаем строку description
+                        continue  # пропускаем description
                     filtered_rule_lines.append(ln)
 
                     if s.startswith("action "):
@@ -2448,7 +2591,11 @@ class EltexESRParser:
                 if not enabled or not action:
                     continue
 
-                # В strict_mode: если требуется source-match, но его нет — пропускаем правило
+                # Игнорируем any-any правила полностью
+                if not src_groups and not dst_groups:
+                    continue
+
+                # В strict_mode: если требуется source-match, но его нет — пропускаем
                 if require_src and not src_groups:
                     continue
 
@@ -2459,8 +2606,7 @@ class EltexESRParser:
                 # Проверяем source
                 src_ok = False
                 if not src_groups:
-                    # Нет ограничения → any
-                    src_ok = not require_src  # в strict_mode с конкретным IP → False
+                    src_ok = not require_src
                 else:
                     for g in src_groups:
                         nets = self._expand_network_group(g)
@@ -2482,7 +2628,6 @@ class EltexESRParser:
                             break
 
                 if src_ok and dst_ok:
-                    # Добавляем отфильтрованные строки (без description)
                     matched_blocks.extend(filtered_rule_lines)
 
             if matched_blocks:
@@ -2491,6 +2636,103 @@ class EltexESRParser:
                 results.append("  exit")
 
         return tuple(results)
+
+    # v5 (правка для сети)
+    # def find_matches(self, src_ip, dst_ip=None, strict_mode=False):
+    #     """
+    #     Логика поиска:
+    #
+    #     - Если src_ip — сеть (маска != 32) → ищем ТОЧНОЕ совпадение сети в match source-address
+    #       Правило без match source-address → полностью игнорируется
+    #     - Если src_ip — IP (/32 или без маски):
+    #         strict_mode=True  → точное совпадение подсети + требуется match source-address
+    #         strict_mode=False → вхождение + any разрешено
+    #     - Аналогично для dst_ip
+    #     - description-строки пропускаются
+    #     """
+    #     results = []
+    #
+    #     # Определяем тип поиска для source и destination
+    #     src_is_network = '/' in src_ip and not src_ip.endswith('/32')
+    #     dst_is_network = dst_ip and '/' in dst_ip and not dst_ip.endswith('/32')
+    #
+    #     # Требуем наличие match source-address, если ищем конкретный src (IP или сеть)
+    #     require_src = src_ip != "any"  # всегда требуем для любого конкретного src
+    #     require_dst = dst_ip and dst_ip != "any"
+    #
+    #     for zone_pair, rule_blocks in self.zone_pairs.items():
+    #         matched_blocks = []
+    #
+    #         for rule_lines in rule_blocks:
+    #             src_groups = []
+    #             dst_groups = []
+    #             action = None
+    #             enabled = False
+    #             filtered_rule_lines = []
+    #
+    #             for ln in rule_lines:
+    #                 s = ln.strip()
+    #                 if s.startswith("description "):
+    #                     continue
+    #                 filtered_rule_lines.append(ln)
+    #
+    #                 if s.startswith("action "):
+    #                     action = s.split("action ", 1)[1].strip()
+    #                 elif s.startswith("match source-address object-group "):
+    #                     src_groups.append(s.split("object-group ", 1)[1].strip())
+    #                 elif s.startswith("match destination-address object-group "):
+    #                     dst_groups.append(s.split("object-group ", 1)[1].strip())
+    #                 elif s == "enable":
+    #                     enabled = True
+    #
+    #             if not enabled or not action:
+    #                 continue
+    #
+    #             # Игнорируем any-any полностью
+    #             if not src_groups and not dst_groups:
+    #                 continue
+    #
+    #             # Если ищем конкретный src (IP или сеть) — требуем наличие match source-address
+    #             if require_src and not src_groups:
+    #                 continue
+    #
+    #             # Если ищем конкретный dst — требуем наличие match destination-address
+    #             if require_dst and not dst_groups:
+    #                 continue
+    #
+    #             # Проверяем source
+    #             src_ok = False
+    #             if not src_groups:
+    #                 src_ok = not require_src
+    #             else:
+    #                 for g in src_groups:
+    #                     nets = self._expand_network_group(g)
+    #                     if self._ip_in_networks(src_ip, nets, strict_mode):
+    #                         src_ok = True
+    #                         break
+    #
+    #             # Проверяем destination
+    #             dst_ok = False
+    #             if dst_ip is None or dst_ip == "any":
+    #                 dst_ok = True
+    #             elif not dst_groups:
+    #                 dst_ok = not require_dst
+    #             else:
+    #                 for g in dst_groups:
+    #                     nets = self._expand_network_group(g)
+    #                     if self._ip_in_networks(dst_ip, nets, strict_mode):
+    #                         dst_ok = True
+    #                         break
+    #
+    #             if src_ok and dst_ok:
+    #                 matched_blocks.extend(filtered_rule_lines)
+    #
+    #         if matched_blocks:
+    #             results.append(f"security zone-pair {zone_pair}")
+    #             results.extend(matched_blocks)
+    #             results.append("  exit")
+    #
+    #     return tuple(results)
     @classmethod
     def from_local_file(cls, filename, src_ip, dst_ip=None,
                         strict_mode=False, base_dir="collected_files_clear", encoding="utf-8"):
