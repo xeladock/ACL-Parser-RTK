@@ -1718,11 +1718,14 @@ class HuaweiParser:
         """
         if spec1 is None or spec2 is None:
             return False
-        if spec1 == "any" or spec2 == "any":
-            if spec1 == spec2 == "any":
-                return True
+
+        if spec1 == "any":
+            return True
+
+        # rule = any
+        if spec2 == "any":
             return not strict_mode
-        
+
         # if "any" in (spec1, spec2) and "any" in (spec2, spec1):
         #     return True
 
@@ -1776,9 +1779,9 @@ class HuaweiParser:
 
                     if intersects_src and intersects_dst:
                         # Отладка здесь — внутри цикла, где все переменные доступны
-                        print(f"[MATCH] ACL={acl_key} | rule={rule_line} | "
-                              f"src_search={src_spec_search!r} → src_rule={src_spec!r} | "
-                              f"dst_search={dst_spec_search!r} → dst_rule={dst_spec!r}")
+                        # print(f"[MATCH] ACL={acl_key} | rule={rule_line} | "
+                        #       f"src_search={src_spec_search!r} → src_rule={src_spec!r} | "
+                        #       f"dst_search={dst_spec_search!r} → dst_rule={dst_spec!r}")
 
                         matched_rules.append(rule_line)
                         break  # нашли совпадение в этом rule — выходим из цикла пар
