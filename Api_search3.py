@@ -4,7 +4,7 @@ import requests
 from urllib3.exceptions import InsecureRequestWarning
 from collections import defaultdict
 from class_resolver import (CiscoNexusParser, HuaweiParser, JuniperACLParser, FortiOSParser,
-                            CiscoIOSXEParser, CiscoIOSParser, EltexACLParser, CiscoASAParser3,EltexESRParser
+                            CiscoIOSXEParser, CiscoIOSParser, EltexACLParser, CiscoASAParser3,EltexESRParser, HPEParser
 )
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -96,7 +96,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
                     yield(f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
 
-        if k2 in ('Cisco IOS','B4COM BCOM-OS-DC','EdgeCore','IBM_Lenovo Network OS','HP ProCurve','Dell Networking OS') :
+        if k2 in ('Cisco IOS','HP ProCurve','B4COM BCOM-OS-DC','EdgeCore','IBM_Lenovo Network OS','Dell Networking OS') :
             for vv in v:
                 res = CiscoIOSParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
@@ -144,9 +144,20 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
                 res = EltexESRParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 print(res)
                 if res:
-
                     yield (f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
+        # if k2  == 'HP ProCurve' :
+        #     for vv in v:
+        #         res = CiscoIOSParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
+        #         if res:
+        #             yield(f"----{k2} {k1} {region(vv)}----")
+        #             yield(vv + ": \n" + "\n".join(res) + "\n")
+        if k2 in ('HPE OfficeConnect', 'HPE Comware 1910', 'HPE Comware'):
+            for vv in v:  # список файлов
+                res = HPEParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
+                if res:
+                    yield (f"----{k2} {k1} {region(vv)}----")
+                    yield (vv + ": \n" + "\n".join(res) + "\n")
 
     # return results
 

@@ -97,9 +97,10 @@ PLATFORM_GROUPS = {
     "Huawei": ["Huawei VRP", "Huawei VRP 2403"],
     "Eltex":["Eltex"],
     "Eltex ESR":["Eltex ESR"],
+    "HP ProCurve/HPE":["HPE Comware",'HP ProCurve',"HPE OfficeConnect", "HPE Comware 1910"],
     "Прочие устройства": [   # всё остальное
         "B4COM BCOM-OS-DC", "EdgeCore", "IBM_Lenovo Network OS",
-        "HP ProCurve", "Dell Networking OS", "Juniper Junos", "Cisco IOS XR", "Cisco PIX"
+        "Dell Networking OS", "Juniper Junos", "Cisco IOS XR", "Cisco PIX"
     ],
 }
 
@@ -236,7 +237,7 @@ class ParserApp:
         self.all_regions_var = None
         self.root = root
         self.root.title("ACL Parser. Версия для AltLinux.")
-        self.root.geometry("1200x820")
+        self.root.geometry("1200x835")
         self.root.configure(bg="#f0f0f0")
         self.root.resizable(False, False)
         if not os.path.exists(CONFIG_DIR) or not os.listdir(CONFIG_DIR):
@@ -249,7 +250,7 @@ class ParserApp:
         self.root.destroy()
 
     def show_version(self):
-        messagebox.showinfo("Версия", "1.19.2. 16 февраля 2026 г.")
+        messagebox.showinfo("Версия", "1.19.4. 11 марта 2026 г.")
 
     def create_menu(self):
         # print("окно")
@@ -345,9 +346,14 @@ class ParserApp:
 
         # формируем имя файла: src-dst-dd-mm-yyyy-hh-mm.txt
         timestamp = datetime.now().strftime("%d-%m-%Y-%H-%M")
-        ss = self.src_or_dst_mode
-        if ss: filename = f"'SOD'-{src_ip}-{dst_ip}-{timestamp}.txt"
-        else: filename = f"{src_ip}-{dst_ip}-{timestamp}.txt"
+        ss = self.src_or_dst_var.get()
+        cc = self.strict_var.get()
+        # print(ss)
+        adddata1=adddata2=""
+        if ss: adddata1="SOD-"
+        if cc: adddata2="Strict-"
+        filename = f"{adddata2}{adddata1}{src_ip}-{dst_ip}-{timestamp}.txt"
+        # else: filename = f"{src_ip}-{dst_ip}-{timestamp}.txt"
 
         # спрашиваем у пользователя, куда сохранить (по умолчанию в текущую папку)
         filepath = filedialog.asksaveasfilename(
@@ -483,8 +489,14 @@ class ParserApp:
         dst_ip = dst_ip.replace("/", "_").replace("\\", "_")
 
         now = datetime.now().strftime("%d-%m-%Y-%H-%M")
-        filename = f"{src_ip}-{dst_ip}-{now}.txt"
-
+        ss = self.src_or_dst_var.get()
+        cc = self.strict_var.get()
+        # print(ss)
+        adddata1=adddata2=""
+        if ss: adddata1="SOD-"
+        if cc: adddata2="Strict-"
+        # filename = f"{src_ip}-{dst_ip}-{now}.txt"
+        filename = f"{adddata2}{adddata1}{src_ip}-{dst_ip}-{now}.txt"
         # Сохраняем в текущей директории
         filepath = os.path.join(os.getcwd(), filename)
         try:
@@ -804,31 +816,39 @@ class ParserApp:
         # self.help_btn.config(state=tk.DISABLED)
         # print(enabled_ues)
         def add_result(res):
-            src_or_dst_mode
+            # src_or_dst_mode
             # if len(res) == 0: self.output.insert(tk.END, "Ничего не найдено.\n")
             buffer = ""
             cnt=0
             # found = False
             # print(Api_search3.main(loc))
             # print(res)
-            for line in res:
-                # found = True
-                buffer += line + "\n"
-                cnt+=1
-                if cnt > 11:
+            try:
+                for line in res:
+                    # found = True
+                    buffer += line + "\n"
+                    cnt+=1
+                    if cnt >= 10:
+                        self.output.insert(tk.END, buffer)
+                        self.output.see(tk.END)
+                        # self.root.update()
+                        buffer = ""
+                        cnt=0
+                if buffer:
                     self.output.insert(tk.END, buffer)
                     self.output.see(tk.END)
-                    # self.root.update()
-                    buffer = ""
-                    cnt=0
-            if buffer:
-                self.output.insert(tk.END, buffer)
-                self.output.see(tk.END)
-            # if not found:
-            #     self.output.insert(tk.END, "Ничего не найдено для .\n\n")
-            self.root.update()
+                # if not found:
+                #     self.output.insert(tk.END, "Ничего не найдено для .\n\n")
+                self.root.update()
+            except:
+                pass
+
         # 1234
         from itertools import chain as chir
+        if strict_mode:
+            addstrict = " в строгом соответствии"
+        else: addstrict = ""
+
         def worker():
 
             if src_or_dst_mode:
@@ -836,37 +856,45 @@ class ParserApp:
                     search_ip = src_ip
                     res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
                     first = next(res, None)
-                    if first is None: self.output.insert(tk.END, f"Ничего не найдено для {search_ip} → any\n\n")
+                    if first is None: self.output.insert(tk.END, f"Ничего не найдено{addstrict} для {search_ip} → any\n\n")
                     else:  res = chir([first], res); add_result(res)
                     self.output.insert(tk.END, "--Обратный поиск--\n\n")
                     res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
                     first = next(res, None)
-                    if first is None: self.output.insert(tk.END, f"Ничего не найдено для any → {search_ip} \n\n")
+                    if first is None: self.output.insert(tk.END, f"Ничего не найдено{addstrict}для any → {search_ip} \n\n")
                     else: res = chir([first], res); add_result(res)
                 else:
                     search_ip = dst_ip
                     res = Api_search3.main("any", search_ip, enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
                     first = next(res, None)
-                    if first is None: self.output.insert(tk.END, f"Ничего не найдено для any → {search_ip} \n\n")
+                    if first is None: self.output.insert(tk.END, f"Ничего не найдено{addstrict} для any → {search_ip} \n\n")
                     else: res = chir([first], res); add_result(res)
                     self.output.insert(tk.END, "--Обратный поиск--\n\n")
                     res = Api_search3.main(search_ip, "any", enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
                     first = next(res, None)
-                    if first is None: self.output.insert(tk.END, f"Ничего не найдено для {search_ip} → any\n\n")
+                    if first is None: self.output.insert(tk.END, f"Ничего не найдено{addstrict} для {search_ip} → any\n\n")
                     else: res = chir([first], res); add_result(res)
             else:
                 res = Api_search3.main(src_ip, dst_ip, enabled_prefixes, enabled_platforms, enabled_ues, strict_mode)
                 first = next(res, None)
-                if first is None: self.output.insert(tk.END, f"Ничего не найдено для {src_ip} → {dst_ip}\n\n")
-                else: res = chir([first], res); add_result(res)
+                if first is None: self.output.insert(tk.END, f"Ничего не найдено{addstrict} для {src_ip} → {dst_ip}\n\n")
+                else:
+                    res = chir([first], res);
+                    add_result(res)
+                    # res = Api_search3.main(src_ip, dst_ip, enabled_prefixes, enabled_platforms, enabled_ues,
+                    #                        strict_mode)
+                    # try:
+                    #     first = next(res, None)
+                    #     res = chir([first], res)
+                    #     add_result(res)
+                    # except: pass
 
-                # print('пять')
-                # print(len(list(res)))
-                # if len(res) == 0: self.output.insert(tk.END, "Ничего не найдено.н\n")
+
 
 
             # if no res: self.output.insert(tk.END, "Ничего не найдено.\n")
-            self.output.insert(tk.END, "✅ Поиск завершен.\n\n")
+            self.output.insert(tk.END, "✅ Поиск завершен.\n----")
+            # self.output.insert(tk.END, "----")
             self.search_btn.config(state=tk.NORMAL)
             self.clear_ip_btn.config(state = tk.NORMAL)
             # self.save_btn.config(state=tk.NORMAL)

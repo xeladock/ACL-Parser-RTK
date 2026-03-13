@@ -97,7 +97,7 @@ def get_device_platform(device_name, netbox_token):
 
     device = data['results'][0]
     platform = device.get('platform')
-    if platform['name'] in ('Cisco UCS', 'AlteonOS', 'Citrix MPX', 'IronWare', 'Cisco WLC','Cisco Small Business Software','Juniper Junos E-Series'): return None
+    if platform['name'] in ('Cisco UCS', 'AlteonOS', 'Citrix MPX', 'IronWare', 'D-Link','Cisco WLC','Cisco Small Business Software','Juniper Junos E-Series'): return None
     return platform['name'] if platform else None
 def process_file(file_path, token):
     device_name = os.path.splitext(os.path.basename(file_path))[0]
