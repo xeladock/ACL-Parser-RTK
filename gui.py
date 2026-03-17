@@ -11,6 +11,9 @@ from tkinter import messagebox, scrolledtext, filedialog, Toplevel
 import Api_search3, copy_to_local_at_type
 from datetime import datetime
 import shutil
+
+from get_acl_from_local.unpack_group_gui import run_og_viewer
+
 # import glossary
 
 GLOSSARY_TEXT = """                     Здесь представлено описание функций программы.
@@ -272,8 +275,6 @@ class ParserApp:
         # program_menu = tk.Menu(menubar, tearoff=0, bg="#f0f0f0", fg="black") # activebackground="#d9d9d9"
         # МЕНЮ ПРОГРАММА
         menubar.add_cascade(label="Программа", menu=program_menu)
-
-
         menubar.add_cascade(label="Справка", menu=help_menu)
         # help_menu = tk.Menu(menubar, tearoff=0, bg="#f0f0f0", fg="black", activebackground="#d9d9d9")
         # program_menu = tk.Menu(menubar, tearoff=0)
@@ -282,6 +283,7 @@ class ParserApp:
         # меню1
         program_menu.add_command(label="Сохранить на диск", command=self.save_output, font=menu_font)
         program_menu.add_command(label="Удалить конфигурацию", command=self.delete_config_folder, font=menu_font)
+        program_menu.add_command(label="OG Viewer", command=run_og_viewer, font=menu_font)
         program_menu.add_command(label="Выход", command=self.app_exit, font=menu_font)
         # --- МЕНЮ СПРАВВКА ---
         # help_menu = tk.Menu(menubar, tearoff=0,bg="#f0f0f0", fg="black",font=menu_font)
