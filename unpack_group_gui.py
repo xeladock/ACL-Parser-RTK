@@ -5,29 +5,29 @@ from tkinter import scrolledtext
 
 from unpack_group_core import get_object_group
 from unpack_group_parser import CiscoASAParser
-def check_ip(objects, ranges, ip):
-    if not ip:
-        return [(obj["text"], False) for obj in objects]
-
-    target = ipaddress.ip_address(ip)
-
-    result = []
-
-    for obj in objects:
-
-        if target in obj["network"]:
-            result.append((obj["text"], True))
-        else:
-            result.append((obj["text"], False))
-
-    for r in ranges:
-
-        if r["start"] <= target <= r["end"]:
-            result.append((r["text"], True))
-        else:
-            result.append((r["text"], False))
-
-    return result
+# def check_ip(objects, ranges, ip):
+#     if not ip:
+#         return [(obj["text"], False) for obj in objects]
+#
+#     target = ipaddress.ip_address(ip)
+#
+#     result = []
+#
+#     for obj in objects:
+#
+#         if target in obj["network"]:
+#             result.append((obj["text"], True))
+#         else:
+#             result.append((obj["text"], False))
+#
+#     for r in ranges:
+#
+#         if r["start"] <= target <= r["end"]:
+#             result.append((r["text"], True))
+#         else:
+#             result.append((r["text"], False))
+#
+#     return result
 
 def search():
 
