@@ -3354,19 +3354,19 @@ class HPEParser:
                     rule_part = " ".join(parts[num_idx + 1:]) if len(parts) > num_idx + 1 else ""
                     if not rule_part or "comment" in line.lower():
                         continue
-                    # try:
-                    pairs = self._parse_office_rule(rule_part)
-                    self.acls[current_acl][line] = pairs
-                    #     cleaned = []
-                    #     for src, dst in pairs:
-                    #         if src == "any" and dst == "any":
-                    #             continue
-                    #         cleaned.append((src, dst))
-                    #     if cleaned:
-                    #         self.acls[current_acl][line] = cleaned
-                    # except Exception as e:
-                    #     print(f"[!] Ошибка разбора строки '{line}': {e}")
-                    # continue
+                    try:
+                        pairs = self._parse_office_rule(rule_part)
+                        self.acls[current_acl][line] = pairs
+                        cleaned = []
+                        for src, dst in pairs:
+                            if src == "any" and dst == "any":
+                                continue
+                            cleaned.append((src, dst))
+                        if cleaned:
+                            self.acls[current_acl][line] = cleaned
+                    except Exception as e:
+                        print(f"[!] Ошибка разбора строки '{line}': {e}")
+                    continue
 
             # === OfficeConnect именованный ACL (ip access-list NAME) ===
             if line.lower().startswith("ip access-list"):
@@ -3393,6 +3393,7 @@ class HPEParser:
                     cleaned = []
                     for src, dst in pairs:
                         if src == "any" and dst == "any":
+                            # print('any-any')
                             continue
                         cleaned.append((src, dst))
                     if cleaned:

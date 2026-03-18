@@ -79,6 +79,9 @@ def get_device_platform(device_name, netbox_token):
     #         results.append((file_path, platform))
     #         # опционально: выводим прогресс
     #         print(f"Проверено: {file_path} -> {platform}")
+    if not os.path.exists("/usr/bin/git"):
+        yield("не найден установленный git в /usr/bin.\nВыполните apt-get install git.")
+        return
 
     NETBOX_URL = 'https://netbox.rt.ru/api'
 
@@ -221,9 +224,9 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
                     add_url = "lan"
                 elif check[1] == "ЦОД":
                     add_url = "dc"
-                # print(add_url)
+                print(add_url)
                 repo_url = f"https://{username}:{safe_password}@configs.net.rt.ru/{add_url}/configs.git"
-                # print(repo_url)
+                print(repo_url)
                 # yield (f"Скачиваем данные...")
                 result = subprocess.run(
                     [
@@ -306,6 +309,13 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
                 # if 'No such file' or 'FileNotFoundError' in e:
                     # yield (f"\n❌ Не найден установленный git.")
                     yield (e)
+                    CONF_DIR = os.path.join(BASE_DIR, "collected_files_clear")
+                    if not os.path.exists(CONF_DIR):
+                        make_writable(rem_dir)
+                        shutil.rmtree(rem_dir)
+
+
+
         # return False
 
 

@@ -12,7 +12,7 @@ import Api_search3, copy_to_local_at_type
 from datetime import datetime
 import shutil
 
-from get_acl_from_local.unpack_group_gui import run_og_viewer
+from unpack_group_gui import run_og_viewer
 
 # import glossary
 
@@ -233,7 +233,7 @@ def fix_entry_shortcuts(entry_widget):
     entry_widget.bind("<Control-x>", cut)
     entry_widget.bind("<Control-X>", cut)
 
-
+# 999
 class ParserApp:
     # LIGHT_BG = "#f0f0f0"
     def __init__(self, root):
@@ -242,7 +242,7 @@ class ParserApp:
         self.root.title("ACL Parser. Версия для AltLinux.")
         self.root.geometry("1200x835")
         self.root.configure(bg="#f0f0f0")
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
         if not os.path.exists(CONFIG_DIR) or not os.listdir(CONFIG_DIR):
             self.open_download_window()
         else:
@@ -727,6 +727,7 @@ class ParserApp:
         # self.bind_enter_to_button(self.save_output)
         # self.bind_enter_to_button(self.delete_config_folder)
 
+
     def run_search(self):
 
         self.output.config(state="disabled")
@@ -788,9 +789,10 @@ class ParserApp:
             self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip} и {dst_ip} → {src_ip}\n\n")
         else:
             self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip}\n\n")
-
+        self.output.insert(tk.END, f"Выбранные УЭС: {', '.join(enabled_ues)}\n\n")
+        self.output.see(tk.END)
         # self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip}\n\n")
-        self.output.insert(tk.END, f"Активные регионы: {', '.join(enabled_region_labels)}\n")
+        self.output.insert(tk.END, f"Выбранные регионы: {', '.join(enabled_region_labels)}\n")
         self.output.see(tk.END)
 
         # --- блок чекбоксов по платформам ---
@@ -805,7 +807,8 @@ class ParserApp:
             return
 
         # выводим в лог
-        self.output.insert(tk.END, f"Активные платформы: {', '.join(enabled_platform_labels)}\n\n")
+        self.output.insert(tk.END, f"Выбранные платформы: {', '.join(enabled_platform_labels)}\n\n")
+
         self.output.see(tk.END)
 
         strict_mode = self.strict_var.get()
@@ -895,7 +898,7 @@ class ParserApp:
 
 
             # if no res: self.output.insert(tk.END, "Ничего не найдено.\n")
-            self.output.insert(tk.END, "✅ Поиск завершен.\n----")
+            self.output.insert(tk.END, "✅ Поиск завершен.\n----\n")
             # self.output.insert(tk.END, "----")
             self.search_btn.config(state=tk.NORMAL)
             self.clear_ip_btn.config(state = tk.NORMAL)
@@ -914,16 +917,19 @@ class ParserApp:
         win.title("Скачивание конфигураций")
         win.configure(bg="#f0f0f0")
         win.geometry("600x800")  # фиксированный размер
-        win.resizable(False, False)  # запрет изменения размера
+        win.resizable(True, True)  # запрет изменения размера
         self.root.bind("<Escape>", lambda e: self.root.destroy())
         for widget in self.root.winfo_children():
             widget.destroy()
 
         win = tk.Frame(self.root, padx=10, pady=10,bg="#f0f0f0")
         win.pack(fill="both", expand=True)
-
-        win.grid_columnconfigure(0, weight=0)
-        win.grid_columnconfigure(1, weight=1)
+        # 1000
+        win.grid_rowconfigure(6, weight=1, minsize=300)
+        # win.grid_columnconfigure(0, weight=1)
+        win.grid_columnconfigure(1, weight=1, minsize=300)
+        # win.grid_columnconfigure(0, weight=0)
+        # win.grid_columnconfigure(1, weight=1)
 
         tk.Label(win, text="GitLab login:",bg="#f0f0f0").grid(row=0, column=0, sticky="e",padx=(0,5))
         login_entry = tk.Entry(win, width=30)
@@ -1076,9 +1082,9 @@ class ParserApp:
         self.root.bind("<Control-Shift-F>", lambda event: download())
         self.bind_enter_to_button(download_btn)
 
-        log_area = scrolledtext.ScrolledText(win, wrap=tk.WORD, width=135, height=33,state="disabled",takefocus=0)
+        log_area = scrolledtext.ScrolledText(win, wrap=tk.WORD,state="disabled",takefocus=0)
         # log_area.grid(row=5, column=0, columnspan=2, pady=10)
-        log_area.grid(row=6, column=0, columnspan=2, sticky="nsew", pady=10)
+        log_area.grid(row=6, column=0, columnspan=2, sticky="nsew", pady=4)
         # win.grid_rowconfigure(5, weight=1)
 
 if __name__ == "__main__":
