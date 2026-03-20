@@ -243,6 +243,8 @@ class ParserApp:
         self.root.geometry("1200x835")
         self.root.configure(bg="#f0f0f0")
         self.root.resizable(True, True)
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
         if not os.path.exists(CONFIG_DIR) or not os.listdir(CONFIG_DIR):
             self.open_download_window()
         else:
@@ -511,32 +513,22 @@ class ParserApp:
         # Показываем короткое уведомление
         self.show_temp_popup("💾 Сохранено")
     # ---------------- MAIN WINDOW ----------------
+    # 1001
     def build_main_window(self):
         for widget in self.root.winfo_children():
             widget.destroy()
-
-        # Отключаем растяжение для всего окна
-
-        self.root.grid_columnconfigure(2, weight=0)
-
-        self.root.grid_rowconfigure(2, weight=0)
-
-        # Создаем фрейм и прижимаем его к левому верхнему углу
         frame = tk.Frame(self.root,bg="#f0f0f0")
-        frame.grid(row=0, column=0, sticky="nw", padx=5, pady=5)
+        frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        # Отключаем растяжение внутри фрейма
-        # frame.grid_columnconfigure(0, weight=0)
-        frame.grid_columnconfigure(2, weight=2)
-        # frame.grid_rowconfigure(0, weight=0)
-        frame.grid_rowconfigure(2, weight=0)
+        top_frame = tk.Frame(frame, bg="#f0f0f0")
+        top_frame.grid(row=0, column=0, sticky="w")
 
         # Создаем отдельный фрейм для полей ввода, чтобы лучше контролировать их выравнивание
         input_frame = tk.Frame(frame,bg="#f0f0f0")
-        input_frame.grid(row=0, column=0, sticky="nw", padx=5, pady=9)  # 🔹 Новый фрейм, прижатый влево
+        input_frame.grid(in_=top_frame,row=0, column=0, sticky="nw", padx=5, pady=10)  # 🔹 Новый фрейм, прижатый влево
 
         # Поля ввода
-        tk.Label(input_frame, text="Source IP:",bg="#f0f0f0").grid(row=0, column=0, sticky="w", padx=(10, 5))  #  sticky="w" вместо "e"
+        tk.Label(input_frame, text="Source IP:",bg="#f0f0f0").grid(row=0, column=0, sticky="nw", padx=(10, 5))  #  sticky="w" вместо "e"
         self.src_entry = tk.Entry(input_frame, width=30)
         self.src_entry.grid(row=0, column=1, sticky="nw", padx=5)  # 🔹 Убедимся, что поле прижато влево
         # self.src_entry.bind("<Control-a>", select_all)
@@ -545,7 +537,7 @@ class ParserApp:
         limit_entry_length(self.src_entry, 50)
         add_placeholder(self.src_entry, "any", "gray")
 
-        tk.Label(input_frame, text="Destination IP:",bg="#f0f0f0").grid(row=1, column=0, sticky="w", padx=(10, 5))  # 🔹 sticky="w" вместо "e"
+        tk.Label(input_frame, text="Destination IP:",bg="#f0f0f0").grid(row=1, column=0, sticky="nw", padx=(10, 5))  # 🔹 sticky="w" вместо "e"
         self.dst_entry = tk.Entry(input_frame, width=30)
         self.dst_entry.grid(row=1, column=1, sticky="nw", padx=5)
         # self.dst_entry.bind("<Control-a>", select_all)
@@ -596,8 +588,11 @@ class ParserApp:
         # 🔹 Группа чекбоксов
 
         # UES
+
+        frame.grid_columnconfigure(0, weight=1)
+        #
         ues_frame = tk.LabelFrame(frame, text="УЭС:",bg="#f0f0f0")
-        ues_frame.grid(row = 0, column = 1, sticky = "nw", padx = 0)
+        ues_frame.grid(in_=top_frame,row = 0, column = 1, sticky = "nw", padx = 0)
 
         self.ues_vars = {}
         col = 0
@@ -615,22 +610,8 @@ class ParserApp:
         self.all_ues_var = tk.BooleanVar(value=True)
 
 
-        #
-        # all_regions_cb = tk.Checkbutton(
-        #     ues_frame,
-        #     text="Все",
-        #     highlightthickness=1,highlightbackground="#f0f0f0",
-        #     bg="#f0f0f0",
-        #     variable=self.all_regions_var,
-        #     command=lambda: toggle_all(list(self.prefix_vars.values()), self.all_regions_var)
-        # )
-        # all_regions_cb.grid(row=row + 1, column=0, sticky="nw", padx=5, pady=(5, 0))
-
-
-
-        # tk.LabelFrame(frame, text="Фильтр по префиксам файлов:")
         prefix_frame = tk.LabelFrame(frame, text="Фильтр по регионам:",bg="#f0f0f0")
-        prefix_frame.grid(row = 0, column = 1, sticky = "nw", padx = 73)
+        prefix_frame.grid(in_=top_frame, row = 0, column = 2, sticky = "nw", padx = 0)
 
         self.prefix_vars = {}
         col = 0
@@ -659,8 +640,10 @@ class ParserApp:
 
 
         self.platform_vars = {}
+
+
         platform_frame = tk.LabelFrame(frame, text="Фильтр по оборудованию:",bg="#f0f0f0")
-        platform_frame.grid(row=0, column=1, sticky="nw",padx=375)
+        platform_frame.grid(in_=top_frame, row=0, column=3, sticky="nw",padx=0)
 
         col, row = 0, 0
         for label in PLATFORM_GROUPS.keys():
@@ -684,16 +667,45 @@ class ParserApp:
         )
         all_platforms_cb.grid(row= row + 1, column=0, sticky="w", padx=5, pady=(5, 0))
         # Кнопка поиска
-        self.search_btn = tk.Button(frame, text="Поиск", command=self.run_search)
-        self.search_btn.grid(row=4, column=0, columnspan=2, pady=10,sticky="w", padx=570)
+
+        btn_frame = tk.Frame(frame, bg="#f0f0f0")
+        btn_frame.grid(row=4, column=0, sticky="ew")
+
+        # даём колонке растягиваться
+        btn_frame.grid_columnconfigure(0, weight=1)
+
+        self.search_btn = tk.Button(btn_frame, text="Поиск", command=self.run_search)
+
+        # ставим кнопку в центр
+        self.search_btn.grid(row=0, column=0)
+
+
 
         self.root.bind("<Control-Shift-f>", lambda event: self.run_search())
         self.root.bind("<Control-Shift-F>", lambda event: self.run_search())
         self.bind_enter_to_button(self.search_btn)
-
+        #1003
         # Окно вывода
-        self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD, width=145, height=31.5,state="disabled",takefocus=0)
-        self.output.grid(row=5, column=0, columnspan=2, sticky="w", padx=5)
+        output_frame = tk.Frame(frame, bg="#f0f0f0")
+        output_frame.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+
+        # растягивается строка в родителе
+        frame.grid_rowconfigure(5, weight=1)
+
+        # растягивается содержимое внутри
+        output_frame.grid_rowconfigure(0, weight=1)
+        output_frame.grid_columnconfigure(0, weight=1)
+
+        self.output = scrolledtext.ScrolledText(
+            output_frame,
+            wrap=tk.WORD,
+            state="disabled",
+            takefocus=0
+        )
+
+        self.output.grid(row=0, column=0, sticky="nsew")
+        # self.output = scrolledtext.ScrolledText(frame, wrap=tk.WORD,state="disabled",takefocus=0)
+        # self.output.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=5)
 
 
         # self.save_btn = tk.Button(frame, text="Сохранить на диск", command=self.save_output)
@@ -789,7 +801,7 @@ class ParserApp:
             self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip} и {dst_ip} → {src_ip}\n\n")
         else:
             self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip}\n\n")
-        self.output.insert(tk.END, f"Выбранные УЭС: {', '.join(enabled_ues)}\n\n")
+        self.output.insert(tk.END, f"Выбранные УЭС: {', '.join(enabled_ues)}\n")
         self.output.see(tk.END)
         # self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip}\n\n")
         self.output.insert(tk.END, f"Выбранные регионы: {', '.join(enabled_region_labels)}\n")
@@ -808,7 +820,6 @@ class ParserApp:
 
         # выводим в лог
         self.output.insert(tk.END, f"Выбранные платформы: {', '.join(enabled_platform_labels)}\n\n")
-
         self.output.see(tk.END)
 
         strict_mode = self.strict_var.get()
@@ -899,6 +910,8 @@ class ParserApp:
 
             # if no res: self.output.insert(tk.END, "Ничего не найдено.\n")
             self.output.insert(tk.END, "✅ Поиск завершен.\n----\n")
+            # self.output.insert(tk.END, "----\n")
+            self.output.see(tk.END)
             # self.output.insert(tk.END, "----")
             self.search_btn.config(state=tk.NORMAL)
             self.clear_ip_btn.config(state = tk.NORMAL)
