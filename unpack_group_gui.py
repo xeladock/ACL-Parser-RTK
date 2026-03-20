@@ -97,28 +97,29 @@ def run_og_viewer(parent=None):
 
     window = tk.Toplevel(parent)  # вместо Tk()
     window.title("Object Group Viewer")
-
-    frame = ttk.Frame(window, padding=10)
+    window.configure(bg="#f0f0f0")
+    frame = tk.Frame(window)
     frame.grid()
-    ttk.Label(frame, text="Устройство").grid(row=0, column=0)
-    device_entry = ttk.Entry(frame, width=40)
-    device_entry.grid(row=0, column=1)
+    frame.configure(bg="#f0f0f0")
+    tk.Label(frame, text="Устройство:",bg="#f0f0f0").grid(row=0, column=0, sticky="e", padx=(0, 2))
+    device_entry = tk.Entry(frame, width=40)
+    device_entry.grid(row=0, column=1, sticky="nw", padx=(2, 0))
 
-    ttk.Label(frame, text="Object-group").grid(row=1, column=0)
-    group_entry = ttk.Entry(frame, width=40)
-    group_entry.grid(row=1, column=1)
+    tk.Label(frame, text="Object-group:",bg="#f0f0f0").grid(row=1, column=0, sticky="e", padx=(0, 2))
+    group_entry = tk.Entry(frame, width=40)
+    group_entry.grid(row=1, column=1,  sticky="w", padx=(2, 0))
 
-    ttk.Label(frame, text="IP / Network").grid(row=2, column=0)
-    ip_entry = ttk.Entry(frame, width=40)
-    ip_entry.grid(row=2, column=1)
+    tk.Label(frame, text="IP / Network:",bg="#f0f0f0").grid(row=2, column=0,sticky="e", padx=(0, 2))
+    ip_entry = tk.Entry(frame, width=40)
+    ip_entry.grid(row=2, column=1, sticky="w", padx=(2, 0))
 
-    search_btn = ttk.Button(frame, text="Поиск", command=search)
-    search_btn.grid(row=3, column=1)
+    search_btn = tk.Button(frame, text="Поиск", command=search)
+    search_btn.grid(row=3, column=1,sticky="w",padx=95)
 
     output = scrolledtext.ScrolledText(frame, width=60, height=20)
     output.grid(row=4, column=0, columnspan=2)
 
-    output.tag_config("bold", font=("TkDefaultFont", 10, "bold"))
+    # output.tag_config("bold", font=("TkDefaultFont", 10, "bold"))
 
 # def run_gui():
 #     """Создаёт окно Object-Group Viewer"""

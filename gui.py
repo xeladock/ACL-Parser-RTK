@@ -798,7 +798,7 @@ class ParserApp:
         self.output.delete("1.0", tk.END)
         self.output.config(state="normal")
         if src_or_dst_mode:
-            self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip} и {dst_ip} → {src_ip}\n\n")
+            self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip} и {dst_ip} → {src_ip}:\n\n")
         else:
             self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip}\n\n")
         self.output.insert(tk.END, f"Выбранные УЭС: {', '.join(enabled_ues)}\n")
