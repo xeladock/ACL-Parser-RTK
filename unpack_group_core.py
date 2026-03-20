@@ -35,7 +35,7 @@ def get_object_group(device, group):
     path = find_device_config(device)
 
     if not path:
-        return None, None, "Устройство не найдено"
+        return None, None, "Выберите устройство"
 
     vendor = detect_vendor(path)
 
