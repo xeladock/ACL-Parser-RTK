@@ -65,6 +65,47 @@ from unpack_group_parser import CiscoASAParser
 
 
 # root.mainloop()
+
+def fix_entry_shortcuts(entry_widget):
+    # Ctrl+A — выделить всё
+    def select_all(event=None):
+        entry_widget.focus_set()
+        entry_widget.selection_range(0, tk.END)
+        return "break"
+
+    # Ctrl+C
+    def copy(event=None):
+        entry_widget.event_generate("<<Copy>>")
+        return "break"
+
+    # Ctrl+X
+    def cut(event=None):
+        entry_widget.event_generate("<<Cut>>")
+        return "break"
+
+    # Ctrl+V — вставка с заменой выделенного
+    def paste(event=None):
+        try:
+            selection = entry_widget.selection_get()
+            # если выделен текст — удалить его
+            entry_widget.delete("sel.first", "sel.last")
+        except tk.TclError:
+            # ничего не выделено — просто вставляем в позицию курсора
+            pass
+        entry_widget.event_generate("<<Paste>>")
+        return "break"
+
+    # биндим все варианты (нижний и верхний регистр)
+    entry_widget.bind("<Control-a>", select_all)
+    entry_widget.bind("<Control-A>", select_all)
+    entry_widget.bind("<Control-c>", copy)
+    entry_widget.bind("<Control-C>", copy)
+    entry_widget.bind("<Control-v>", paste)
+    entry_widget.bind("<Control-V>", paste)
+    entry_widget.bind("<Control-x>", cut)
+    entry_widget.bind("<Control-X>", cut)
+
+
 def run_og_viewer(parent=None):
     def search():
 
@@ -83,18 +124,23 @@ def run_og_viewer(parent=None):
         if not ip:
             for obj in objects:
                 output.insert(tk.END, obj["text"] + "\n")
+                # print("3")
             return
         # ranges = parser.parse_object_ranges()
 
         result = parser.check_ip(objects, ip)
-
+        print(result)
         for text, match in result:
-
+            # print(text)
             if match:
-                output.insert(tk.END, text + "\n", "bold")
+                output.insert(tk.END, text + "\n", "bold" )
+                # output.insert(tk.END, "Found"+"\n")
+                # print("1")
+                print(text)
             else:
                 output.insert(tk.END, text + "\n")
-
+                # print("2")
+                # print(text)
     window = tk.Toplevel(parent)  # вместо Tk()
     window.title("Object Group Viewer")
     window.configure(bg="#f0f0f0")
@@ -107,8 +153,10 @@ def run_og_viewer(parent=None):
     frame.grid_columnconfigure(1, weight=1)
     frame.grid_anchor("w")
     tk.Label(frame, text="Устройство:",bg="#f0f0f0").grid(row=0, column=0, sticky="e",padx=(30, 2))
+
     device_entry = tk.Entry(frame, width=40)
     device_entry.grid(row=0, column=1, sticky = "w", padx = (2,0))
+    fix_entry_shortcuts(device_entry)
 
     tk.Label(frame, text="Object-group:",bg="#f0f0f0").grid(row=1, column=0, sticky="e", padx=(10, 2))
     group_entry = tk.Entry(frame, width=40)
@@ -124,7 +172,7 @@ def run_og_viewer(parent=None):
     output = scrolledtext.ScrolledText(frame, width=63, height=25)
     output.grid(row=4, column=0, columnspan=2)
 
-    # output.tag_config("bold", font=("TkDefaultFont", 10, "bold"))
+    output.tag_config("bold", font=("TkDefaultFont", 10, "bold"))
 
 # def run_gui():
 #     """Создаёт окно Object-Group Viewer"""

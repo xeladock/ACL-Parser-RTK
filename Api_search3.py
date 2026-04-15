@@ -9,7 +9,7 @@ from class_resolver import (CiscoNexusParser, HuaweiParser, JuniperACLParser, Fo
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-output_dir = "collected_files_clear"
+output_dir = "config_files_clear"
 
 # PREFIX_LABELS = {
 #     "(Волга)": "PRNG-DC",
@@ -23,11 +23,11 @@ output_dir = "collected_files_clear"
 # }
 
 PREFIX_LABELS = {
+    "(Корпоративный Центр)": "CE",
+    "(Центр)": "CE",
     "(Волга)": "PR",
     "(Дальний Восток)": "DV",
     "(Северо-Запад)": "SZ",
-    "(Центр)": "CE",
-    "(Корпоративный Центр)": "CE",
     "(Урал)": "UR",
     "(Юг)": "UF",
     "(Сибирь)": "SI",
@@ -139,7 +139,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
                     yield (f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")
         if k2 == 'Eltex ESR':
-            print(v)
+            # print(v)
             for vv in v:
                 res = EltexESRParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 print(res)
@@ -152,7 +152,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
         #         if res:
         #             yield(f"----{k2} {k1} {region(vv)}----")
         #             yield(vv + ": \n" + "\n".join(res) + "\n")
-        if k2 in ('HPE OfficeConnect', 'HPE Comware 1910', 'HPE Comware'):
+        if k2 in ('HPE OfficeConnect', 'HPE Comware 1910', 'HPE Comware','3Com Comware 1910'):
             for vv in v:  # список файлов
                 res = HPEParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:

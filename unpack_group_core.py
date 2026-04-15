@@ -3,7 +3,7 @@ import os
 from unpack_group_parser import CiscoASAParser, HuaweiVRPParser
 
 
-BASE_DIR = "collected_files_clear"
+BASE_DIR = "config_files_clear"
 
 
 def find_device_config(device):

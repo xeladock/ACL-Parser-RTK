@@ -403,7 +403,7 @@ class BaseParser(ABC):
 # ================================
 # Huawei VRP
 # ================================
-import ipaddress
+
 
 class CiscoASAParser:
 
@@ -560,6 +560,8 @@ class CiscoASAParser:
             return True
         except ValueError:
             return False
+
+
 class HuaweiVRPParser(BaseParser):
 
     def get_object_group(self, group_name):

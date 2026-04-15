@@ -5,7 +5,7 @@ import threading
 from re import sub as rs
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, filedialog, Toplevel
-
+from copy_to_local_at_type import BASE_DIR
 # from paramiko.common import four_byte
 
 import Api_search3, copy_to_local_at_type
@@ -41,7 +41,7 @@ GLOSSARY_TEXT = """                     Здесь представлено оп
         Если поле вывода пустое будет выведено предупреждение.
 
 Удаление:
-  • Удалить папку конфигураций — кнопка удаляет папку с конфигурациями "сollected_files_clear".
+  • Удалить папку конфигураций — кнопка удаляет папку с конфигурациями "config_files_clear".
         После удаления программа вернется в состояние ввода логина/пароля gitlab и netbox Token для повторной загрузки.
 
 Горячие клавиши:
@@ -57,10 +57,10 @@ GLOSSARY_TEXT = """                     Здесь представлено оп
   • Escape - Закрыть окно.
 
 
-Версия: 1.19.2 / 16.02.26
+Версия: 1.19.5 / 30.03.26
 """
 
-CONFIG_DIR = "collected_files_clear"
+CONFIG_DIR = "config_files_clear"
 
 UES = {
     "ЛВС": "ЛВС",
@@ -239,7 +239,7 @@ class ParserApp:
     def __init__(self, root):
         self.all_regions_var = None
         self.root = root
-        self.root.title("ACL Parser. Версия для AltLinux.")
+        self.root.title("ACL Parser.")
         self.root.geometry("1200x835")
         self.root.configure(bg="#f0f0f0")
         self.root.resizable(True, True)
@@ -256,7 +256,7 @@ class ParserApp:
 
     def show_version(self):
         messagebox.showinfo("Версия", "1.19.4. 11 марта 2026 г.")
-
+    # 1005
     def create_menu(self):
         # print("окно")
         from tkinter import font
@@ -736,6 +736,15 @@ class ParserApp:
         # кнопкиdelete_config_folder
         self.bind_enter_to_button(self.reverse_btn)
         self.bind_enter_to_button(self.clear_ip_btn)
+        # 1010
+        # self.root.bind("<Control-Shift-!>", lambda event: run_og_viewer())
+        def hotkeys(event):
+            if event.state & 0x4:  # Ctrl
+                if event.keysym == "1":
+                    run_og_viewer()
+
+        self.root.bind_all("<KeyPress>", hotkeys)
+        # self.root.bind("<Control-Shift-!>", lambda event: self.run_og_viewer())
         # self.bind_enter_to_button(self.save_output)
         # self.bind_enter_to_button(self.delete_config_folder)
 
@@ -1011,19 +1020,25 @@ class ParserApp:
                 messagebox.showerror("Ошибка", "Выберите объект загрузки.")
                 return
 
-            box = [[dc, "ЦОД"],[lvs, "ЛВС"]]
+            box = [[lvs, "ЛВС"],[dc, "ЦОД"]]
             # print(box, "1")
             log_area.see(tk.END)
 
             download_btn.config(state=tk.DISABLED)
             lvs_cb.config(state=tk.DISABLED)
             dc_cb.config(state=tk.DISABLED)
+            # RAW_DIR = os.path.join(BASE_DIR, "config_files")
+            # CONF_DIR = os.path.join(BASE_DIR, "config_files_clear")
 
             def add_log(line):
                 def update_log():
-                    log_area.insert(tk.END, line + "\n")
-                    log_area.see(tk.END)
-                    log_area.update_idletasks()  # Для плавности
+                    try:
+                        log_area.insert(tk.END, line + "\n")
+                        log_area.see(tk.END)
+                        log_area.update_idletasks()
+                    except:
+                        print(line)
+                        pass# Для плавности
 
                 self.root.after(0, update_log)
 
@@ -1032,14 +1047,25 @@ class ParserApp:
                     messagebox.showinfo("Ура!", "Скачалось успешно!", parent=win)
                     win.destroy()
                     self.build_main_window()
-
+                    self.create_menu()
+                # 1006
                 self.root.after(0, update_success)
 
             def on_failure(error_msg):
                 def update_failure():
                     messagebox.showerror("Ошибка!", error_msg, parent=win)
+                    RAW_DIR = os.path.join(BASE_DIR, "config_files")
+                    CONF_DIR = os.path.join(BASE_DIR, "config_files_clear")
+                    if os.path.exists(CONF_DIR):
+                        # make_writable(rem_dir)
+                        shutil.rmtree(CONF_DIR)
+                    if os.path.exists(RAW_DIR):
+                        # make_writable(rem_dir)
+                        shutil.rmtree(RAW_DIR)
                     # print(error_msg)
                     download_btn.config(state=tk.NORMAL)
+                    lvs_cb.config(state=tk.NORMAL)
+                    dc_cb.config(state=tk.NORMAL)
                     log_area.config(state="disabled")
 
                 self.root.after(0, update_failure)
@@ -1048,6 +1074,8 @@ class ParserApp:
                 try:
                     success = False
                     for line in copy_to_local_at_type.main(login, password, token, box):
+                        # line = str(line)
+                        print(line)
                         add_log(line)
                         if line.startswith("\n👍 Все"):
                             time.sleep(0.5)
@@ -1056,11 +1084,25 @@ class ParserApp:
                         # time.sleep(1)  # Если нужно
                         on_success()
                     else:
+                        # if os.path.exists(CONF_DIR):
+                        #     # make_writable(rem_dir)
+                        #     shutil.rmtree(CONF_DIR)
+                        # if os.path.exists(RAW_DIR):
+                        #     # make_writable(rem_dir)
+                        #     shutil.rmtree(RAW_DIR)
                         on_failure("Скачивание не удалось!")
                 except Exception as e:
+
+                    # if os.path.exists(CONF_DIR):
+                    #     # make_writable(rem_dir)
+                    #     shutil.rmtree(CONF_DIR)
+                    # if os.path.exists(RAW_DIR):
+                    #     # make_writable(rem_dir)
+                    #     shutil.rmtree(RAW_DIR)
                     # print(e)
                     add_log(f"❌ Ошибка: {e}")
                     on_failure("Скачивание не удалось!")
+
 
             threading.Thread(target=worker, daemon=True).start()
 

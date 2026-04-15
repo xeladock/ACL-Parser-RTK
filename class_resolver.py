@@ -373,7 +373,7 @@ class CiscoIOSXEParser:
         return tuple(matches)
 
     @classmethod
-    def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="collected_files_clear", encoding="utf-8"):
+    def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="config_files_clear", encoding="utf-8"):
         for root, _, files in os.walk(base_dir):
             for file in files:
                 if file == filename:
@@ -720,7 +720,7 @@ class CiscoIOSParser:
         return tuple(matches)
 
     @classmethod
-    def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="collected_files_clear",
+    def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="config_files_clear",
                         encoding="utf-8"):
         for root, _, files in os.walk(base_dir):
             for file in files:
@@ -745,7 +745,7 @@ class CiscoASAParser3:
             self.parse()
 
         @classmethod
-        def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="collected_files_clear",
+        def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="config_files_clear",
                             encoding="utf-8"):
             for root, _, files in os.walk(base_dir):
                 for file in files:
@@ -1187,7 +1187,7 @@ class FortiOSParser:
         return tuple(matches)  # ✅ Возвращаем tuple() вместо set()
 
     @classmethod
-    def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="collected_files_clear", encoding="utf-8"):
+    def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="config_files_clear", encoding="utf-8"):
         """
         Searches for a file in base_dir, parses it, and returns ACL matches.
         """
@@ -1214,7 +1214,7 @@ class HuaweiParser2:
         self.parse()
 
     @classmethod
-    def from_local_file(cls, filename, src_ip, dst_ip, base_dir="collected_files_clear", encoding="utf-8",
+    def from_local_file(cls, filename, src_ip, dst_ip, base_dir="config_files_clear", encoding="utf-8",
                         strict_mode=False):
         for root, _, files in os.walk(base_dir):
             for file in files:
@@ -1436,7 +1436,7 @@ class HuaweiParser:
         self.parse()
 
     @classmethod
-    def from_local_file(cls, filename, src_ip, dst_ip, base_dir="collected_files_clear", encoding="utf-8",
+    def from_local_file(cls, filename, src_ip, dst_ip, base_dir="config_files_clear", encoding="utf-8",
                         strict_mode=False):
         for root, _, files in os.walk(base_dir):
             for file in files:
@@ -1908,7 +1908,7 @@ class CiscoNexusParser:
         # No need for in_acl close, as lines are added
 
     @classmethod
-    def from_local_file(cls, filename, src_ip=None, dst_ip=None, strict_mode=False, base_dir="collected_files_clear",
+    def from_local_file(cls, filename, src_ip=None, dst_ip=None, strict_mode=False, base_dir="config_files_clear",
                         encoding="utf-8"):
         for root, _, files in os.walk(base_dir):
             for file in files:
@@ -2304,7 +2304,7 @@ class JuniperACLParser:
         return tuple(results)
 
     @classmethod
-    def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="collected_files_clear",
+    def from_local_file(cls, filename, src_ip, dst_ip, strict_mode=False, base_dir="config_files_clear",
                         encoding="utf-8"):
         for root, _, files in os.walk(base_dir):
             for file in files:
@@ -2375,7 +2375,7 @@ class EltexACLParser:
 
     @classmethod
     def from_local_file(cls, filename, src_ip, dst_ip=None,
-                        strict_mode=False, base_dir="collected_files_clear", encoding="utf-8"):
+                        strict_mode=False, base_dir="config_files_clear", encoding="utf-8"):
         for root, _, files in os.walk(base_dir):
             for file in files:
                 if file == filename:
@@ -2466,7 +2466,7 @@ class EltexESRParse2:
             self.zone_pairs[current_zone].append(current_rule_block)
     @classmethod
     def from_local_file(cls, filename, src_ip, dst_ip=None,
-                        strict_mode=False, base_dir="collected_files_clear", encoding="utf-8"):
+                        strict_mode=False, base_dir="config_files_clear", encoding="utf-8"):
         for root, _, files in os.walk(base_dir):
             for file in files:
                 if file == filename:
@@ -3259,7 +3259,7 @@ class EltexESRParser:
         return tuple(results)
     @classmethod
     def from_local_file(cls, filename, src_ip, dst_ip=None,
-                        strict_mode=False, base_dir="collected_files_clear", encoding="utf-8"):
+                        strict_mode=False, base_dir="config_files_clear", encoding="utf-8"):
         for root, _, files in os.walk(base_dir):
             for file in files:
                 if file == filename:
@@ -3686,7 +3686,7 @@ class HPEParser:
                     results.append(f"  {r}")
         return tuple(results)
     @classmethod
-    def from_local_file(cls, filename, src_ip, dst_ip, base_dir="collected_files_clear", encoding="utf-8",
+    def from_local_file(cls, filename, src_ip, dst_ip, base_dir="config_files_clear", encoding="utf-8",
                         strict_mode=False):
         for root, _, files in os.walk(base_dir):
             for file in files:

@@ -55,33 +55,19 @@ def make_writable(path):
         for name in files:
             fpath = os.path.join(root, name)
             try:
-                os.chmod(fpath, 0o777)
+                os.chmod(fpath, 0o775)
             except Exception as e:
                 yield (f"[WARN] chmod file {fpath}: {e}")
         for name in dirs:
             dpath = os.path.join(root, name)
             try:
-                os.chmod(dpath, 0o777)
+                os.chmod(dpath, 0o775)
             except Exception as e:
                 yield (f"[WARN] chmod dir {dpath}: {e}")
 
 BASE_DIR = get_base_dir()
-
 def get_device_platform(device_name, netbox_token):
-    # results = []
-    # files_to_check = []
-    # token = netbox_token
-    # # ограничим например 8 потоков, чтобы не штурмовать API
-    # with ThreadPoolExecutor(max_workers=8) as executor:
-    #     future_map = {executor.submit(process_file, f, token): f for f in files_to_check}
-    #     for future in as_completed(future_map):
-    #         file_path, platform = future.result()
-    #         results.append((file_path, platform))
-    #         # опционально: выводим прогресс
-    #         print(f"Проверено: {file_path} -> {platform}")
-    if not os.path.exists("/usr/bin/git"):
-        yield("не найден установленный git в /usr/bin.\nВыполните apt-get install git.")
-        return
+
 
     NETBOX_URL = 'https://netbox.rt.ru/api'
 
@@ -100,14 +86,57 @@ def get_device_platform(device_name, netbox_token):
 
     device = data['results'][0]
     platform = device.get('platform')
-    if platform['name'] in ('Cisco UCS', 'AlteonOS', 'Citrix MPX', 'IronWare', 'D-Link','Cisco WLC','Cisco Small Business Software','Juniper Junos E-Series'): return None
-    return platform['name'] if platform else None
+    if not platform:
+        return None
+
+    if platform['name'] in ('AlteonOS', 'Citrix MPX','D-Link','Cisco UCS', 'Cisco WLC', 'Cisco Small Business Software',
+    'Juniper Junos E-Series'): return None
+    # print(platform)
+    # return platform['name'] if platform else None
+    return platform.get('name')
+
+# def get_device_platform(device_name, netbox_token):
+#     # results = []
+#     # files_to_check = []
+#     # token = netbox_token
+#     # # ограничим например 8 потоков, чтобы не штурмовать API
+#     # with ThreadPoolExecutor(max_workers=8) as executor:
+#     #     future_map = {executor.submit(process_file, f, token): f for f in files_to_check}
+#     #     for future in as_completed(future_map):
+#     #         file_path, platform = future.result()
+#     #         results.append((file_path, platform))
+#     #         # опционально: выводим прогресс
+#     #         print(f"Проверено: {file_path} -> {platform}")
+
+#
+#     NETBOX_URL = 'https://netbox.rt.ru/api'
+#
+#     headers2 = {
+#         "Authorization": f"Token {netbox_token}",
+#         "Accept": "application/json",
+#         "User-Agent": "Mozilla/5.0 (compatible; GitLabParser/1.0)"
+#     }
+#
+#     url = f"{NETBOX_URL}/dcim/devices/?name={device_name}"
+#     response = requests.get(url, headers=headers2, verify=False, timeout=10)
+#     data = response.json()
+#
+#     if data['count'] == 0:
+#         return None
+#
+#     device = data['results'][0]
+#     platform = device.get('platform')
+#     if platform['name'] in ('Cisco UCS', 'AlteonOS', 'Citrix MPX', 'IronWare', 'D-Link','Cisco WLC','Cisco Small Business Software','Juniper Junos E-Series'): return None
+#     return platform['name'] if platform else None
 def process_file(file_path, token):
     device_name = os.path.splitext(os.path.basename(file_path))[0]
     platform = get_device_platform(device_name, token)
     return file_path, platform
 
 def main(gitlab_login, gitlab_password, netbox_token, box):
+    if not os.path.exists("/usr/bin/git"):
+            yield("не найден установленный git в /usr/bin.\nВыполните apt-get install git.")
+            return
     """
     Скачивание конфигураций и подготовка структуры папок.
     Возвращает (success, logs)
@@ -124,6 +153,21 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
     #             dir_path = os.path.join(root, name)
     #             os.chmod(dir_path, os.stat.S_IWRITE)  # Используем stat.S_IWRITE
     # print(box)
+    yield ("Старт процессов...")
+    rem_dir = os.path.join(BASE_DIR, "config_files")
+    CONFIG_DIR = os.path.join(BASE_DIR, "config_files_clear")
+    if os.path.exists(rem_dir):
+            make_writable(rem_dir)
+            time.sleep(1)
+            shutil.rmtree(rem_dir)
+            time.sleep(1)
+
+    if os.path.exists(CONFIG_DIR):
+            make_writable(CONFIG_DIR)
+            time.sleep(1)
+            shutil.rmtree(CONFIG_DIR)
+            time.sleep(1)
+
     username = gitlab_login
     safe_password = quote(gitlab_password, safe='')
     # repo_url = "https://configs.net.rt.ru/dc/configs.git"
@@ -152,7 +196,7 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
     #         os.mkdir(rem_dir, 0o755)
     for check in box:
         if check[0]:
-            CONFIG_DIR = os.path.join(BASE_DIR, "collected_files_clear", check[1])
+            CONFIG_DIR = os.path.join(BASE_DIR, "config_files_clear", check[1])
             try:
                 # 🔹 создаём папку назначения
                 if not os.path.exists(CONFIG_DIR):
@@ -212,8 +256,8 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
 
 
                 #
-                clone_dir = os.path.join(BASE_DIR, "collected_files",check[1])
-                rem_dir = os.path.join(BASE_DIR, "collected_files")
+                clone_dir = os.path.join(BASE_DIR, "config_files",check[1])
+
                 yield (f"Создана папка для репозитория {clone_dir}")
                 time.sleep(1)
                 yield (f"Скачиваем файлы {check[1]} с gitlab...")
@@ -224,9 +268,9 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
                     add_url = "lan"
                 elif check[1] == "ЦОД":
                     add_url = "dc"
-                print(add_url)
+                # print(add_url)
                 repo_url = f"https://{username}:{safe_password}@configs.net.rt.ru/{add_url}/configs.git"
-                print(repo_url)
+                # print(repo_url)
                 # yield (f"Скачиваем данные...")
                 result = subprocess.run(
                     [
@@ -266,9 +310,12 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
                             src_path = os.path.join(root, file)
                             device_name = os.path.splitext(file)[0]
 
+                            # print("2")
                             # определяем платформу через NetBox
                             platform = get_device_platform(device_name, netbox_token)
-
+                            # print(type(platform), platform)
+                            # print("2")
+                            # print(platform)
                             if not platform or not platform.strip():
                                 continue
 
@@ -306,13 +353,14 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
                 # return True, logs
 
             except Exception as e:
+                    # print('вот тут')
                 # if 'No such file' or 'FileNotFoundError' in e:
                     # yield (f"\n❌ Не найден установленный git.")
                     yield (e)
-                    CONF_DIR = os.path.join(BASE_DIR, "collected_files_clear")
-                    if not os.path.exists(CONF_DIR):
-                        make_writable(rem_dir)
-                        shutil.rmtree(rem_dir)
+                    # CONF_DIR = os.path.join(BASE_DIR, "collected_files_clear")
+                    # if not os.path.exists(CONF_DIR):
+                    #     make_writable(rem_dir)
+                    #     shutil.rmtree(rem_dir)
 
 
 
