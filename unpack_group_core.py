@@ -1,7 +1,6 @@
 import ipaddress
 import os
-from unpack_group_parser import CiscoASAParser, HuaweiVRPParser
-
+from unpack_group_parser import CiscoASAParser, CiscoIOSXEParser, CiscoFirepowerParser, CiscoNexusParser, CiscoPIXParser
 
 BASE_DIR = "config_files_clear"
 
@@ -18,17 +17,26 @@ def find_device_config(device):
     return None
 
 
-VENDOR_MAP = {
-    "Cisco ASA": CiscoASAParser,
-    "Huawei VRP": HuaweiVRPParser
-}
+# VENDOR_MAP = {
+#     "Cisco ASA": CiscoASAParser,
+#     "Cisco IOS XE": CiscoIOSXEParser,
+#     "Cisco FXOS": CiscoFirepowerParser,
+#     "Cisco NX-OS": CiscoNexusParser,
+#
+# }
 
 def detect_vendor(path):
 
     if "Cisco ASA" in path:
         return "cisco_asa"
-    if "Huawei VRP" in path:
-        return "huawei_vrp"
+    if "Cisco IOS XE" in path:
+        return "cisco_ios_xe"
+    if "Cisco FXOS" in path:
+        return "cisco_fxos"
+    if "Cisco NX-OS" in path:
+        return "cisco_nxos"
+    if "Cisco PIX" in path:
+        return "cisco_pix"
     return None
 def get_object_group(device, group):
 
@@ -44,6 +52,15 @@ def get_object_group(device, group):
 
     if vendor == "cisco_asa":
         parser = CiscoASAParser(config)
+    elif vendor == "cisco_ios_xe":
+        parser = CiscoIOSXEParser(config)
+    elif vendor == "cisco_fxos":
+        parser = CiscoFirepowerParser(config)
+    elif vendor == "cisco_nxos":
+        parser = CiscoNexusParser(config)
+    elif vendor == "cisco_pix":
+        parser = CiscoPIXParser(config)
+
 
     else:
         return None, None, "Unsupported vendor"

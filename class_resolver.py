@@ -2,6 +2,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import ipaddress
 from collections import defaultdict
+from itertools import product
 import re
 import os
 
@@ -1206,16 +1207,52 @@ class FortiOSParser:
 
         print(f"⚠️ File {filename} not found in directory {base_dir}")
         return tuple()  # ✅ Возвращаем tuple() вместо list()
-class HuaweiParser2:
+class HuaweiParser3:
     def __init__(self, config_text):
         self.config_lines = config_text.splitlines()
-        self.acls = {}
+        self.acls = {}                    # Старый стиль (коммутаторы)
         self.acl_headers = {}
+        self.firewall_rules = []          # Новый стиль (Firewall)
+        self.address_sets = {}
         self.parse()
+    def _parse_address_set(self, start_idx):
+        i = start_idx
+        name = None
+        specs = []
 
+        while i < len(self.config_lines):
+            line = self.config_lines[i].strip()
+            if not line or line.startswith("ip address-set") or line.startswith("#"):
+                break
+
+            if line.startswith("address "):
+                parts = line.split()
+                if len(parts) >= 4 and parts[2] == "mask":
+                    try:
+                        net = ipaddress.IPv4Network(f"{parts[3]}/{parts[4]}", strict=False)
+                        specs.append(str(net))
+                    except:
+                        specs.append(f"{parts[3]}/32")
+                elif len(parts) >= 3:
+                    specs.append(f"{parts[2]}/32")
+
+            i += 1
+
+        # Ищем имя address-set (строка перед "type object" или "type group")
+        # Простой вариант — берём предыдущую строку
+        for j in range(start_idx - 5, start_idx):
+            if j >= 0 and "address-set" in self.config_lines[j]:
+                parts = self.config_lines[j].strip().split()
+                if len(parts) >= 3:
+                    name = parts[2]
+                    break
+
+        if name:
+            self.address_sets[name] = specs
+
+        return i
     @classmethod
-    def from_local_file(cls, filename, src_ip, dst_ip, base_dir="config_files_clear", encoding="utf-8",
-                        strict_mode=False):
+    def from_local_file(cls, filename, src_ip, dst_ip, base_dir="config_files_clear", encoding="utf-8", strict_mode=False):
         for root, _, files in os.walk(base_dir):
             for file in files:
                 if file == filename:
@@ -1234,47 +1271,131 @@ class HuaweiParser2:
     def parse(self):
         current_acl = None
         current_header = None
-        for raw in self.config_lines:
-            line = raw.strip()
+
+        i = 0
+        while i < len(self.config_lines):
+            line = self.config_lines[i].strip()
             if not line:
+                i += 1
                 continue
 
-            if line.startswith("acl number"):
-                parts = line.split()
-                if len(parts) >= 3:
-                    current_acl = parts[2]
-                    current_header = "acl number " + current_acl
-                    self.acls.setdefault(current_acl, {})
-                    self.acl_headers[current_acl] = current_header
-                continue
-            if line.startswith("acl name"):
-                parts = line.split()
-                if len(parts) >= 3:
-                    name = parts[2]
+            # === Старый стиль: ACL для коммутаторов ===
+            if line.startswith(("acl number", "acl name")):
+                if line.startswith("acl number"):
+                    parts = line.split()
+                    current_acl = parts[2] if len(parts) >= 3 else None
+                    current_header = "acl number " + current_acl if current_acl else line
+                else:
+                    parts = line.split()
+                    name = parts[2] if len(parts) >= 3 else ""
                     number = parts[3] if len(parts) > 3 else ""
                     current_acl = number if number else name
                     current_header = line
+
+                if current_acl:
                     self.acls.setdefault(current_acl, {})
                     self.acl_headers[current_acl] = current_header
+                i += 1
                 continue
 
+            # === Новый стиль: Firewall rules ===
+            if line.startswith("rule name "):
+                rule_name = line[10:].strip()
+                i = self._parse_firewall_rule(i + 1, rule_name)
+                continue
+
+            if line.startswith("ip address-set "):
+                i = self._parse_address_set(i + 1)
+                continue
+
+            # === Старый стиль правил внутри ACL ===
             if current_acl and line.startswith("rule"):
                 if "description" in line.lower():
+                    i += 1
                     continue
                 try:
                     pairs = self._parse_rule(line)
-                    if not pairs:
-                        continue
-                    cleaned = []
-                    for src, dst in pairs:
-                        if src == "any" and dst == "any":
-                            continue
-                        cleaned.append((src, dst))
+                    cleaned = [(s, d) for s, d in pairs if not (s == "any" and d == "any")]
                     if cleaned:
                         self.acls[current_acl][line] = cleaned
                 except Exception as e:
-                    print(f"[!] Ошибка разбора строки '{line}': {e}")
+                    print(f"[!] Ошибка разбора ACL: {line} — {e}")
+                i += 1
+                continue
 
+            i += 1
+
+    def _parse_firewall_rule(self, start_idx, rule_name):
+        rule = {
+            'name': rule_name.strip('"'),
+            'source_addresses': [],      # будет содержать либо IP/сеть, либо имя address-set
+            'destination_addresses': [],
+            'services': [],
+            'action': 'deny',
+            'disabled': False
+        }
+
+        i = start_idx
+        while i < len(self.config_lines):
+            line = self.config_lines[i].strip()
+
+            if (not line or line.startswith("rule name ") or line.startswith("#") or
+                line.startswith("security-policy") or line.startswith("auth-policy") or
+                line.startswith("traffic-policy") or line.startswith("ip address-set")):
+                break
+
+            if line == "disable":
+                rule['disabled'] = True
+
+            elif line.startswith("source-address "):
+                parts = line.split()
+                if len(parts) >= 3 and parts[1] == "address-set":
+                    rule['source_addresses'].append(parts[2])   # имя address-set
+                elif len(parts) >= 2:
+                    if len(parts) >= 4 and parts[2] == "mask":
+                        rule['source_addresses'].append(self._mask_to_cidr(parts[1], parts[3]))
+                    else:
+                        rule['source_addresses'].append(f"{parts[1]}/32")
+
+            elif line.startswith("destination-address "):
+                parts = line.split()
+                if len(parts) >= 3 and parts[1] == "address-set":
+                    rule['destination_addresses'].append(parts[2])   # имя address-set
+                elif len(parts) >= 2:
+                    if len(parts) >= 4 and parts[2] == "mask":
+                        rule['destination_addresses'].append(self._mask_to_cidr(parts[1], parts[3]))
+                    else:
+                        rule['destination_addresses'].append(f"{parts[1]}/32")
+
+            elif line.startswith("service ") or line.startswith("service-set "):
+                svc = line.split(maxsplit=1)[1].strip().strip('"')
+                rule['services'].append(svc)
+
+            elif line.startswith("action "):
+                rule['action'] = line.split(maxsplit=1)[1].strip()
+
+            i += 1
+
+        if not rule['disabled']:
+            if not rule['source_addresses']:
+                rule['source_addresses'] = ["any"]
+            if not rule['destination_addresses']:
+                rule['destination_addresses'] = ["any"]
+            if not rule['services']:
+                rule['services'] = ["any"]
+
+            self.firewall_rules.append(rule)
+
+        return i
+
+    def _mask_to_cidr(self, ip, mask):
+        try:
+            net = ipaddress.IPv4Network(f"{ip}/{mask}", strict=False)
+            return str(net)
+        except Exception:
+            return f"{ip}/32"
+
+    # ====================== СТАРЫЙ СТИЛЬ ======================
     def _parse_rule(self, line):
         parts = line.split()
         src_spec = "any"
@@ -1295,18 +1416,14 @@ class HuaweiParser2:
             return "any"
 
         ip = parts[idx]
-
         wc = None
-        if idx + 1 < len(parts):
-            nxt = parts[idx + 1]
-            if self._looks_like_wildcard(nxt):
-                wc = nxt
+        if idx + 1 < len(parts) and self._looks_like_wildcard(parts[idx + 1]):
+            wc = parts[idx + 1]
 
         if wc is None:
             return f"{ip}/32"
 
-        spec = self._wildcard_to_network_or_range(ip, wc)
-        return spec
+        return self._wildcard_to_network_or_range(ip, wc)
 
     def _looks_like_wildcard(self, s: str) -> bool:
         if s.count(".") == 3:
@@ -1318,16 +1435,14 @@ class HuaweiParser2:
         return s.isdigit()
 
     def _wildcard_to_network_or_range(self, ip_str: str, wildcard_str: str):
-        ip = HPEParser.safe_ip_address(ip_str)
-        if ip is None:
-            return None
+        # ... (оставляем как было) ...
         try:
             if wildcard_str.count(".") == 3:
                 w = int(ipaddress.IPv4Address(wildcard_str))
             else:
                 w = int(wildcard_str)
                 if not (0 <= w <= 0xFFFFFFFF):
-                    raise ValueError("wildcard out of range")
+                    raise ValueError
         except Exception:
             return f"{ip_str}/32"
 
@@ -1341,85 +1456,102 @@ class HuaweiParser2:
                 net = ipaddress.IPv4Network((ip_str, prefix), strict=True)
                 return str(net)
             except ValueError:
-                ip_int = int(ipaddress.IPv4Address(ip_str))
-                start = (ip_int & (~w & 0xFFFFFFFF)) & 0xFFFFFFFF
-                end = (ip_int | w) & 0xFFFFFFFF
-                return ("range", ipaddress.IPv4Address(start), ipaddress.IPv4Address(end))
+                pass
 
         ip_int = int(ipaddress.IPv4Address(ip_str))
         start = (ip_int & (~w & 0xFFFFFFFF)) & 0xFFFFFFFF
         end = (ip_int | w) & 0xFFFFFFFF
         return ("range", ipaddress.IPv4Address(start), ipaddress.IPv4Address(end))
 
+    # ====================== ОБЩАЯ ЛОГИКА ======================
     def _parse_search(self, text):
         if text == "any":
             return "any"
         if "/" in text:
             try:
-                net = ipaddress.ip_network(text, strict=True)
-                return str(net)
+                return str(ipaddress.ip_network(text, strict=True))
             except ValueError:
                 return None
         if " " in text:
             parts = text.split()
-            ip = parts[0]
-            wc = parts[1]
-            return self._wildcard_to_network_or_range(ip, wc)
+            return self._wildcard_to_network_or_range(parts[0], parts[1])
         return f"{text}/32"
-
     def _get_min_max(self, spec):
         if spec == "any":
             return 0, 0xFFFFFFFF
-        if spec is None:
-            return None, None
-        if isinstance(spec, tuple) and spec[0] == "range":
-            _, start, end = spec
-            return int(start), int(end)
-        if "/" in spec:
-            net = ipaddress.ip_network(spec, strict=False)
-            return int(net.network_address), int(net.broadcast_address)
-        ip = ipaddress.ip_address(spec)
-        return int(ip), int(ip)
+
+        if spec is None or not isinstance(spec, str):
+            return -1, -2
+
+        # Если это имя address-set (не начинается с цифры и не "any")
+        if not spec[0].isdigit():
+            return -1, -2   # пока не поддерживаем диапазон address-set
+
+        try:
+            if "/" in spec:
+                net = ipaddress.ip_network(spec, strict=False)
+                return int(net.network_address), int(net.broadcast_address)
+            else:
+                ip = ipaddress.ip_address(spec)
+                return int(ip), int(ip)
+        except ValueError:
+            return -1, -2
 
     def _spec_intersects(self, spec1, spec2, strict_mode):
+        """
+        spec1 - поисковый запрос пользователя
+        spec2 - значение из правила (IP/сеть или имя address-set)
+        """
         if spec1 is None or spec2 is None:
             return False
 
+        # any логика
+        if spec1 == "any" and spec2 == "any":
+            return True
         if spec1 == "any" or spec2 == "any":
-            if spec1 == spec2 == "any":
-                return True
             return not strict_mode
 
+        # === Новый блок: работа с address-set ===
+        is_spec1_address_set = not (spec1[0].isdigit() if spec1 else False)
+        is_spec2_address_set = not (spec2[0].isdigit() if spec2 else False)
+
+        if is_spec1_address_set or is_spec2_address_set:
+            # Если хотя бы один — address-set, то совпадение только по точному имени
+            return spec1 == spec2
+
+        # === Оба значения — нормальные IP или сети ===
         min1, max1 = self._get_min_max(spec1)
         min2, max2 = self._get_min_max(spec2)
 
-        is_network1 = max1 > min1
-        is_network2 = max2 > min2
+        if min1 == -1 or min2 == -1:
+            return False
 
+        is_single_search = (min1 == max1)
         overlap = max1 >= min2 and max2 >= min1
-
-        if is_network1:
-            return min1 == min2 and max1 == max2
 
         if strict_mode:
             return min1 == min2 and max1 == max2
-
-        return min2 <= min1 <= max2
-
+        else:
+            if is_single_search:
+                return overlap          # IP входит в сеть
+            else:
+                return min1 == min2 and max1 == max2   # сети строго
     def find_acl_matches(self, src_ip, dst_ip, strict_mode=False):
         src_spec_search = self._parse_search(src_ip)
         dst_spec_search = self._parse_search(dst_ip)
 
         if src_spec_search is None or dst_spec_search is None:
-            return []
+            return ()
 
         results = []
+
+        # 1. Старый стиль — ACL коммутаторов
         for acl_key, rules in self.acls.items():
             matched_rules = []
             for rule_line, pairs in rules.items():
                 for src_spec, dst_spec in pairs:
-                    if self._spec_intersects(src_spec_search, src_spec, strict_mode) and self._spec_intersects(
-                            dst_spec_search, dst_spec, strict_mode):
+                    if (self._spec_intersects(src_spec_search, src_spec, strict_mode) and
+                        self._spec_intersects(dst_spec_search, dst_spec, strict_mode)):
                         matched_rules.append(rule_line)
                         break
             if matched_rules:
@@ -1427,7 +1559,246 @@ class HuaweiParser2:
                 results.append(header)
                 for r in matched_rules:
                     results.append(f"  {r}")
-        return tuple(results)
+
+        # 2. Новый стиль — Firewall rules
+        for rule in self.firewall_rules:
+            src_addrs = rule['source_addresses']
+            dst_addrs = rule['destination_addresses']
+            services_str = ", ".join(rule['services']) if rule['services'] and rule['services'] != ["any"] else "any"
+            action = rule['action']
+            print(
+                f"[DEBUG RULE] '{rule['name']}' | src={rule['source_addresses']} | dst={rule['destination_addresses']} | services={rule['services']}")
+            for s_addr, d_addr in product(src_addrs, dst_addrs):
+                if s_addr == "any" and d_addr == "any":
+                    continue
+
+                if (self._spec_intersects(src_spec_search, s_addr, strict_mode) and
+                        self._spec_intersects(dst_spec_search, d_addr, strict_mode)):
+                    line = f"{rule['name']} {s_addr} {d_addr} {services_str} {action}"
+                    results.append(line)
+
+        return tuple(results)# class HuaweiParser2:
+#     def __init__(self, config_text):
+#         self.config_lines = config_text.splitlines()
+#         self.acls = {}
+#         self.acl_headers = {}
+#         self.parse()
+#
+#     @classmethod
+#     def from_local_file(cls, filename, src_ip, dst_ip, base_dir="config_files_clear", encoding="utf-8",
+#                         strict_mode=False):
+#         for root, _, files in os.walk(base_dir):
+#             for file in files:
+#                 if file == filename:
+#                     full_path = os.path.join(root, file)
+#                     try:
+#                         with open(full_path, "r", encoding=encoding, errors="ignore") as f:
+#                             config_text = f.read()
+#                     except Exception as e:
+#                         print(f"[!] Ошибка при чтении {full_path}: {e}")
+#                         return ()
+#                     parser = cls(config_text)
+#                     return parser.find_acl_matches(src_ip, dst_ip, strict_mode)
+#         print(f"⚠️ Файл {filename} не найден в директории {base_dir}")
+#         return ()
+#
+#     def parse(self):
+#         current_acl = None
+#         current_header = None
+#         for raw in self.config_lines:
+#             line = raw.strip()
+#             if not line:
+#                 continue
+#
+#             if line.startswith("acl number"):
+#                 parts = line.split()
+#                 if len(parts) >= 3:
+#                     current_acl = parts[2]
+#                     current_header = "acl number " + current_acl
+#                     self.acls.setdefault(current_acl, {})
+#                     self.acl_headers[current_acl] = current_header
+#                 continue
+#             if line.startswith("acl name"):
+#                 parts = line.split()
+#                 if len(parts) >= 3:
+#                     name = parts[2]
+#                     number = parts[3] if len(parts) > 3 else ""
+#                     current_acl = number if number else name
+#                     current_header = line
+#                     self.acls.setdefault(current_acl, {})
+#                     self.acl_headers[current_acl] = current_header
+#                 continue
+#
+#             if current_acl and line.startswith("rule"):
+#                 if "description" in line.lower():
+#                     continue
+#                 try:
+#                     pairs = self._parse_rule(line)
+#                     if not pairs:
+#                         continue
+#                     cleaned = []
+#                     for src, dst in pairs:
+#                         if src == "any" and dst == "any":
+#                             continue
+#                         cleaned.append((src, dst))
+#                     if cleaned:
+#                         self.acls[current_acl][line] = cleaned
+#                 except Exception as e:
+#                     print(f"[!] Ошибка разбора строки '{line}': {e}")
+#
+#     def _parse_rule(self, line):
+#         parts = line.split()
+#         src_spec = "any"
+#         dst_spec = "any"
+#
+#         if "source" in parts:
+#             i = parts.index("source")
+#             src_spec = self._parse_addr_with_wildcard(parts, i + 1)
+#
+#         if "destination" in parts:
+#             i = parts.index("destination")
+#             dst_spec = self._parse_addr_with_wildcard(parts, i + 1)
+#
+#         return [(src_spec, dst_spec)]
+#
+#     def _parse_addr_with_wildcard(self, parts, idx):
+#         if idx >= len(parts):
+#             return "any"
+#
+#         ip = parts[idx]
+#
+#         wc = None
+#         if idx + 1 < len(parts):
+#             nxt = parts[idx + 1]
+#             if self._looks_like_wildcard(nxt):
+#                 wc = nxt
+#
+#         if wc is None:
+#             return f"{ip}/32"
+#
+#         spec = self._wildcard_to_network_or_range(ip, wc)
+#         return spec
+#
+#     def _looks_like_wildcard(self, s: str) -> bool:
+#         if s.count(".") == 3:
+#             try:
+#                 ipaddress.IPv4Address(s)
+#                 return True
+#             except ValueError:
+#                 return False
+#         return s.isdigit()
+#
+#     def _wildcard_to_network_or_range(self, ip_str: str, wildcard_str: str):
+#         ip = HPEParser.safe_ip_address(ip_str)
+#         if ip is None:
+#             return None
+#         try:
+#             if wildcard_str.count(".") == 3:
+#                 w = int(ipaddress.IPv4Address(wildcard_str))
+#             else:
+#                 w = int(wildcard_str)
+#                 if not (0 <= w <= 0xFFFFFFFF):
+#                     raise ValueError("wildcard out of range")
+#         except Exception:
+#             return f"{ip_str}/32"
+#
+#         if w == 0:
+#             return f"{ip_str}/32"
+#
+#         if (w & (w + 1)) == 0:
+#             k = bin(w).count("1")
+#             prefix = 32 - k
+#             try:
+#                 net = ipaddress.IPv4Network((ip_str, prefix), strict=True)
+#                 return str(net)
+#             except ValueError:
+#                 ip_int = int(ipaddress.IPv4Address(ip_str))
+#                 start = (ip_int & (~w & 0xFFFFFFFF)) & 0xFFFFFFFF
+#                 end = (ip_int | w) & 0xFFFFFFFF
+#                 return ("range", ipaddress.IPv4Address(start), ipaddress.IPv4Address(end))
+#
+#         ip_int = int(ipaddress.IPv4Address(ip_str))
+#         start = (ip_int & (~w & 0xFFFFFFFF)) & 0xFFFFFFFF
+#         end = (ip_int | w) & 0xFFFFFFFF
+#         return ("range", ipaddress.IPv4Address(start), ipaddress.IPv4Address(end))
+#
+#     def _parse_search(self, text):
+#         if text == "any":
+#             return "any"
+#         if "/" in text:
+#             try:
+#                 net = ipaddress.ip_network(text, strict=True)
+#                 return str(net)
+#             except ValueError:
+#                 return None
+#         if " " in text:
+#             parts = text.split()
+#             ip = parts[0]
+#             wc = parts[1]
+#             return self._wildcard_to_network_or_range(ip, wc)
+#         return f"{text}/32"
+#
+#     def _get_min_max(self, spec):
+#         if spec == "any":
+#             return 0, 0xFFFFFFFF
+#         if spec is None:
+#             return None, None
+#         if isinstance(spec, tuple) and spec[0] == "range":
+#             _, start, end = spec
+#             return int(start), int(end)
+#         if "/" in spec:
+#             net = ipaddress.ip_network(spec, strict=False)
+#             return int(net.network_address), int(net.broadcast_address)
+#         ip = ipaddress.ip_address(spec)
+#         return int(ip), int(ip)
+#
+#     def _spec_intersects(self, spec1, spec2, strict_mode):
+#         if spec1 is None or spec2 is None:
+#             return False
+#
+#         if spec1 == "any" or spec2 == "any":
+#             if spec1 == spec2 == "any":
+#                 return True
+#             return not strict_mode
+#
+#         min1, max1 = self._get_min_max(spec1)
+#         min2, max2 = self._get_min_max(spec2)
+#
+#         is_network1 = max1 > min1
+#         is_network2 = max2 > min2
+#
+#         overlap = max1 >= min2 and max2 >= min1
+#
+#         if is_network1:
+#             return min1 == min2 and max1 == max2
+#
+#         if strict_mode:
+#             return min1 == min2 and max1 == max2
+#
+#         return min2 <= min1 <= max2
+#
+#     def find_acl_matches(self, src_ip, dst_ip, strict_mode=False):
+#         src_spec_search = self._parse_search(src_ip)
+#         dst_spec_search = self._parse_search(dst_ip)
+#
+#         if src_spec_search is None or dst_spec_search is None:
+#             return []
+#
+#         results = []
+#         for acl_key, rules in self.acls.items():
+#             matched_rules = []
+#             for rule_line, pairs in rules.items():
+#                 for src_spec, dst_spec in pairs:
+#                     if self._spec_intersects(src_spec_search, src_spec, strict_mode) and self._spec_intersects(
+#                             dst_spec_search, dst_spec, strict_mode):
+#                         matched_rules.append(rule_line)
+#                         break
+#             if matched_rules:
+#                 header = self.acl_headers.get(acl_key, f"acl {acl_key}")
+#                 results.append(header)
+#                 for r in matched_rules:
+#                     results.append(f"  {r}")
+#         return tuple(results)
 class HuaweiParser:
     def __init__(self, config_text):
         self.config_lines = config_text.splitlines()
@@ -2383,100 +2754,100 @@ class EltexACLParser:
                         parser = cls(f.read())
                         return parser.find_matches(src_ip, dst_ip, strict_mode)
         return set()
-class EltexESRParse2:
-    def __init__(self, config_text):
-        self.config_lines = [line.rstrip() for line in config_text.splitlines()]
-        self.zone_pairs = defaultdict(list)          # zone_pair → list[list[str]] — блоки правил
-        self.network_groups = defaultdict(list)      # имя группы → [префиксы]
-        self.service_groups = defaultdict(list)      # имя группы → [порты/диапазоны]
-        self.parse()
-
-    def parse(self):
-        i = 0
-        n = len(self.config_lines)
-        current_zone = None
-        current_rule_block = None
-
-        while i < n:
-            line = self.config_lines[i]
-            stripped = line.strip()
-
-            # Новый zone-pair
-            m = re.match(r'^security\s+zone-pair\s+(\S+)\s+(\S+)', stripped)
-            if m:
-                if current_rule_block:
-                    self.zone_pairs[current_zone].append(current_rule_block)
-                current_zone = f"{m.group(1)} {m.group(2)}"
-                current_rule_block = None
-                i += 1
-                continue
-
-            # Новый rule внутри текущего zone-pair
-            if current_zone and re.match(r'^\s*rule\s+\d+', stripped):
-                if current_rule_block:
-                    self.zone_pairs[current_zone].append(current_rule_block)
-                current_rule_block = [line]
-                i += 1
-                continue
-
-            # Продолжаем текущий rule или пропускаем
-            if current_zone and current_rule_block is not None:
-                # Если строка выглядит как начало нового объекта — завершаем блок
-                if stripped.startswith(('object-group ', 'security zone-pair ', 'nat ', 'ip ', 'clock ', 'ntp ', 'lldp ', 'hostname ', '#!')):
-                    self.zone_pairs[current_zone].append(current_rule_block)
-                    current_rule_block = None
-                else:
-                    current_rule_block.append(line)
-            elif stripped.startswith("object-group network "):
-                # Парсим network group
-                parts = stripped.split(maxsplit=2)
-                if len(parts) >= 3:
-                    group_name = parts[2]
-                    i += 1
-                    while i < n:
-                        l = self.config_lines[i].strip()
-                        if l.startswith("ip prefix "):
-                            self.network_groups[group_name].append(l.split("ip prefix ", 1)[1].strip())
-                        elif l.startswith(("exit", "!", "object-group", "security zone-pair")):
-                            break
-                        i += 1
-                    continue
-            elif stripped.startswith("object-group service "):
-                # Парсим service group (порты)
-                parts = stripped.split(maxsplit=2)
-                if len(parts) >= 3:
-                    group_name = parts[2]
-                    i += 1
-                    while i < n:
-                        l = self.config_lines[i].strip()
-                        if l.startswith("port-range "):
-                            self.service_groups[group_name].append(l.split("port-range ", 1)[1].strip())
-                        elif l.startswith(("exit", "!", "object-group", "security zone-pair", "description")):
-                            if l.startswith("description"):
-                                i += 1
-                                continue
-                            break
-                        i += 1
-                    continue
-
-            i += 1
-
-        # Сохраняем последний блок, если остался открытым
-        if current_rule_block and current_zone:
-            self.zone_pairs[current_zone].append(current_rule_block)
-    @classmethod
-    def from_local_file(cls, filename, src_ip, dst_ip=None,
-                        strict_mode=False, base_dir="config_files_clear", encoding="utf-8"):
-        for root, _, files in os.walk(base_dir):
-            for file in files:
-                if file == filename:
-                    with open(os.path.join(root, file), "r", encoding=encoding, errors="ignore") as f:
-                        parser = cls(f.read())
-                        return parser.find_matches(src_ip, dst_ip, strict_mode)
-        return tuple()
-
-    # Остальные методы (_expand_network_group, _ip_in_networks, find_matches, from_local_file)
-    # остаются как в предыдущей версии — они уже рабочие
+# class EltexESRParse2:
+#     def __init__(self, config_text):
+#         self.config_lines = [line.rstrip() for line in config_text.splitlines()]
+#         self.zone_pairs = defaultdict(list)          # zone_pair → list[list[str]] — блоки правил
+#         self.network_groups = defaultdict(list)      # имя группы → [префиксы]
+#         self.service_groups = defaultdict(list)      # имя группы → [порты/диапазоны]
+#         self.parse()
+#
+#     def parse(self):
+#         i = 0
+#         n = len(self.config_lines)
+#         current_zone = None
+#         current_rule_block = None
+#
+#         while i < n:
+#             line = self.config_lines[i]
+#             stripped = line.strip()
+#
+#             # Новый zone-pair
+#             m = re.match(r'^security\s+zone-pair\s+(\S+)\s+(\S+)', stripped)
+#             if m:
+#                 if current_rule_block:
+#                     self.zone_pairs[current_zone].append(current_rule_block)
+#                 current_zone = f"{m.group(1)} {m.group(2)}"
+#                 current_rule_block = None
+#                 i += 1
+#                 continue
+#
+#             # Новый rule внутри текущего zone-pair
+#             if current_zone and re.match(r'^\s*rule\s+\d+', stripped):
+#                 if current_rule_block:
+#                     self.zone_pairs[current_zone].append(current_rule_block)
+#                 current_rule_block = [line]
+#                 i += 1
+#                 continue
+#
+#             # Продолжаем текущий rule или пропускаем
+#             if current_zone and current_rule_block is not None:
+#                 # Если строка выглядит как начало нового объекта — завершаем блок
+#                 if stripped.startswith(('object-group ', 'security zone-pair ', 'nat ', 'ip ', 'clock ', 'ntp ', 'lldp ', 'hostname ', '#!')):
+#                     self.zone_pairs[current_zone].append(current_rule_block)
+#                     current_rule_block = None
+#                 else:
+#                     current_rule_block.append(line)
+#             elif stripped.startswith("object-group network "):
+#                 # Парсим network group
+#                 parts = stripped.split(maxsplit=2)
+#                 if len(parts) >= 3:
+#                     group_name = parts[2]
+#                     i += 1
+#                     while i < n:
+#                         l = self.config_lines[i].strip()
+#                         if l.startswith("ip prefix "):
+#                             self.network_groups[group_name].append(l.split("ip prefix ", 1)[1].strip())
+#                         elif l.startswith(("exit", "!", "object-group", "security zone-pair")):
+#                             break
+#                         i += 1
+#                     continue
+#             elif stripped.startswith("object-group service "):
+#                 # Парсим service group (порты)
+#                 parts = stripped.split(maxsplit=2)
+#                 if len(parts) >= 3:
+#                     group_name = parts[2]
+#                     i += 1
+#                     while i < n:
+#                         l = self.config_lines[i].strip()
+#                         if l.startswith("port-range "):
+#                             self.service_groups[group_name].append(l.split("port-range ", 1)[1].strip())
+#                         elif l.startswith(("exit", "!", "object-group", "security zone-pair", "description")):
+#                             if l.startswith("description"):
+#                                 i += 1
+#                                 continue
+#                             break
+#                         i += 1
+#                     continue
+#
+#             i += 1
+#
+#         # Сохраняем последний блок, если остался открытым
+#         if current_rule_block and current_zone:
+#             self.zone_pairs[current_zone].append(current_rule_block)
+#     @classmethod
+#     def from_local_file(cls, filename, src_ip, dst_ip=None,
+#                         strict_mode=False, base_dir="config_files_clear", encoding="utf-8"):
+#         for root, _, files in os.walk(base_dir):
+#             for file in files:
+#                 if file == filename:
+#                     with open(os.path.join(root, file), "r", encoding=encoding, errors="ignore") as f:
+#                         parser = cls(f.read())
+#                         return parser.find_matches(src_ip, dst_ip, strict_mode)
+#         return tuple()
+#
+#     # Остальные методы (_expand_network_group, _ip_in_networks, find_matches, from_local_file)
+#     # остаются как в предыдущей версии — они уже рабочие
 class EltexESRParser:
     def __init__(self, config_text):
         self.config_lines = config_text.splitlines()

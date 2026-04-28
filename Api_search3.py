@@ -4,8 +4,9 @@ import requests
 from urllib3.exceptions import InsecureRequestWarning
 from collections import defaultdict
 from class_resolver import (CiscoNexusParser, HuaweiParser, JuniperACLParser, FortiOSParser,
-                            CiscoIOSXEParser, CiscoIOSParser, EltexACLParser, CiscoASAParser3,EltexESRParser, HPEParser
-)
+                            CiscoIOSXEParser, CiscoIOSParser, EltexACLParser, CiscoASAParser3, EltexESRParser,
+                            HPEParser, HuaweiParser3
+                            )
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -119,7 +120,7 @@ def main(src_ip, dst_ip, allowed_prefixes=None, allowed_platforms=None, allowed_
 
         if k2 in ('Huawei VRP','Huawei VRP 2403'):
             for vv in v:
-                res = HuaweiParser.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
+                res = HuaweiParser3.from_local_file(vv, search_text[0], search_text[1], strict_mode=strict_mode)
                 if res:
                     yield(f"----{k2} {k1} {region(vv)}----")
                     yield(vv + ": \n" + "\n".join(res) + "\n")

@@ -1,6 +1,5 @@
-import ipaddress
+
 import tkinter as tk
-from tkinter import ttk
 from tkinter import scrolledtext
 
 from unpack_group_core import get_object_group
@@ -161,10 +160,12 @@ def run_og_viewer(parent=None):
     tk.Label(frame, text="Object-group:",bg="#f0f0f0").grid(row=1, column=0, sticky="e", padx=(10, 2))
     group_entry = tk.Entry(frame, width=40)
     group_entry.grid(row=1, column=1,  sticky="w", padx=(2, 0))
+    fix_entry_shortcuts(group_entry)
 
     tk.Label(frame, text="IP / Network:",bg="#f0f0f0").grid(row=2, column=0,sticky="e", padx=(10, 2))
     ip_entry = tk.Entry(frame, width=40)
     ip_entry.grid(row=2, column=1, sticky="w", padx=(2, 0))
+    fix_entry_shortcuts(ip_entry)
 
     search_btn = tk.Button(frame, text="Поиск", command=search)
     search_btn.grid(row=3, column=1,sticky="w",padx=120,pady=(4, 4))
@@ -173,12 +174,3 @@ def run_og_viewer(parent=None):
     output.grid(row=4, column=0, columnspan=2)
 
     output.tag_config("bold", font=("TkDefaultFont", 10, "bold"))
-
-# def run_gui():
-#     """Создаёт окно Object-Group Viewer"""
-#     window = tk.Toplevel()  # Важно: Toplevel, а не Tk
-#     window.title("Object-Group Viewer")
-#     # window.geometry("600x400")
-#
-#     # Здесь ваш GUI: entry, кнопки, вывод и т.д.
-#     tk.Label(window, text="Пример OG Viewer").pack()

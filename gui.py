@@ -806,10 +806,14 @@ class ParserApp:
 
         self.output.delete("1.0", tk.END)
         self.output.config(state="normal")
+        adss = " "
+        if self.strict_var.get():
+            adss = " строгого "
+
         if src_or_dst_mode:
-            self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip} и {dst_ip} → {src_ip}:\n\n")
+            self.output.insert(tk.END, f"Запуск{adss}поиска ACL для {src_ip} → {dst_ip} и {dst_ip} → {src_ip}:\n\n")
         else:
-            self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip}\n\n")
+            self.output.insert(tk.END, f"Запуск{adss}поиска ACL для {src_ip} → {dst_ip}\n\n")
         self.output.insert(tk.END, f"Выбранные УЭС: {', '.join(enabled_ues)}\n")
         self.output.see(tk.END)
         # self.output.insert(tk.END, f"Запуск поиска ACL для {src_ip} → {dst_ip}\n\n")
