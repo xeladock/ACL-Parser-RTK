@@ -1,18 +1,24 @@
 import ipaddress
 import os
-from unpack_group_parser import CiscoASAParser, CiscoIOSXEParser, CiscoFirepowerParser, CiscoNexusParser, CiscoPIXParser
+
+from get_acl_from_local.unpack_group_parser import HuaweiVRPParser
+from unpack_group_parser import CiscoASAParser, CiscoIOSXEParser, CiscoFirepowerParser, CiscoNexusParser, CiscoPIXParser, HuaweiVRPParser
 
 BASE_DIR = "config_files_clear"
 
 
 def find_device_config(device):
-
+    print("devise is", device)
+    # if device == "":
+    #     return "пусто"
     for root, dirs, files in os.walk(BASE_DIR):
 
         for f in files:
 
             if f == device:
+
                 return os.path.join(root, f)
+
 
     return None
 
@@ -37,16 +43,18 @@ def detect_vendor(path):
         return "cisco_nxos"
     if "Cisco PIX" in path:
         return "cisco_pix"
+    if "Huawei VRP" in path:
+        return "huawei_vrp"
     return None
 def get_object_group(device, group):
 
     path = find_device_config(device)
-
+    print("path is", path)
     if not path:
-        return None, None, "Выберите устройство"
+        return None, None, "Устройство не найдено."
 
     vendor = detect_vendor(path)
-
+    print("vendor is", vendor)
     with open(path, encoding="utf8", errors="ignore") as f:
         config = f.read()
 
@@ -60,11 +68,13 @@ def get_object_group(device, group):
         parser = CiscoNexusParser(config)
     elif vendor == "cisco_pix":
         parser = CiscoPIXParser(config)
+    elif vendor == "huawei_vrp":
+        parser = HuaweiVRPParser(config)
 
 
     else:
-        return None, None, "Unsupported vendor"
-
+        return None, None, "Вендор не поддерживается."
+    # output.config(state="disabled")
     objects = parser.get_object_group(group)
 
     return parser, objects, None

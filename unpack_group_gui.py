@@ -1,4 +1,4 @@
-
+import ipaddress
 import tkinter as tk
 from tkinter import scrolledtext
 
@@ -64,6 +64,17 @@ from unpack_group_parser import CiscoASAParser
 
 
 # root.mainloop()
+def validate_ip_or_network2(value: str) -> bool:
+    if not value or value.lower() == "any":
+        return True
+    try:
+        if "/" in value:
+            ipaddress.ip_network(value, strict=False)
+        else:
+            ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
 
 def fix_entry_shortcuts(entry_widget):
     # Ctrl+A — выделить всё
@@ -107,37 +118,76 @@ def fix_entry_shortcuts(entry_widget):
 
 def run_og_viewer(parent=None):
     def search():
-
+        output.config(state="normal")
         device = device_entry.get()
+        if not device:
+            output.delete("1.0", tk.END)
+            output.insert(tk.END, "Введите название устройства.")
+            output.config(state="disabled")
+        print("device2 is", device)
+
+            # return
         group = group_entry.get()
+
+        # if not group:
+        #     output.insert(tk.END, "Введите название object-group устройства.")
+        #     output.config(state="disabled")
+        #     return
         ip = ip_entry.get()
 
         output.delete("1.0", tk.END)
 
         parser, objects, err = get_object_group(device, group)
 
+        print("err is", err)
+        # print("path2 is", info)
         if err:
             output.insert(tk.END, err)
+            output.config(state="disabled")
             return
-
+        # SZSP-DCZK-EXT-FW1_1
+        print("group is", group)
+        if not group:
+            output.insert(tk.END, "Введите название Object-group.")
+            output.config(state="disabled")
+            return
+        if not objects:
+            output.insert(tk.END, "Object-group не найден.")
+            output.config(state="disabled")
+            return
+        if not validate_ip_or_network2(ip):
+            output.insert(tk.END, "Некорректный формат ip-адреса или сети.")
+            output.config(state="disabled")
+            return
+        # SZSP-DCZK-EXT-FW1_1
         if not ip:
+            # if not objects:
+            #     output.insert(tk.END, "Object-group не найден.")
+            #     output.config(state="disabled")
+            #     return
             for obj in objects:
+                print(obj)
                 output.insert(tk.END, obj["text"] + "\n")
+
                 # print("3")
+
             return
+        # output.config(state="disabled")
         # ranges = parser.parse_object_ranges()
 
         result = parser.check_ip(objects, ip)
         print(result)
         for text, match in result:
+
             # print(text)
             if match:
                 output.insert(tk.END, text + "\n", "bold" )
                 # output.insert(tk.END, "Found"+"\n")
                 # print("1")
-                print(text)
+                print("text is",text)
             else:
                 output.insert(tk.END, text + "\n")
+        output.config(state="disabled")
                 # print("2")
                 # print(text)
     window = tk.Toplevel(parent)  # вместо Tk()
@@ -151,8 +201,8 @@ def run_og_viewer(parent=None):
     frame.grid_columnconfigure(0, weight=0)
     frame.grid_columnconfigure(1, weight=1)
     frame.grid_anchor("w")
-    tk.Label(frame, text="Устройство:",bg="#f0f0f0").grid(row=0, column=0, sticky="e",padx=(30, 2))
 
+    tk.Label(frame, text="Устройство:",bg="#f0f0f0").grid(row=0, column=0, sticky="e",padx=(30, 2))
     device_entry = tk.Entry(frame, width=40)
     device_entry.grid(row=0, column=1, sticky = "w", padx = (2,0))
     fix_entry_shortcuts(device_entry)
@@ -172,5 +222,5 @@ def run_og_viewer(parent=None):
 
     output = scrolledtext.ScrolledText(frame, width=63, height=25)
     output.grid(row=4, column=0, columnspan=2)
-
+    output.config(state="disabled")
     output.tag_config("bold", font=("TkDefaultFont", 10, "bold"))

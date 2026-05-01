@@ -885,3 +885,306 @@ class CiscoPIXParser:
             result.append((obj.get("text", ""), match))
 
         return result
+# class HuaweiVRPParser:
+#
+#     def __init__(self, config_text):
+#         self.config = config_text
+#         self.lines = config_text.splitlines()
+#         # Все address-set (object и group) для поддержки вложенности
+#         self.all_address_sets = self.parse_all_address_sets()
+#
+#     def parse_all_address_sets(self):
+#         """Парсим все ip address-set type object и type group"""
+#         address_sets = {}
+#         i = 0
+#         while i < len(self.lines):
+#             line = self.lines[i].strip()
+#
+#             if line.startswith("ip address-set ") and " type " in line:
+#                 # Пример: ip address-set netams type object
+#                 parts = line.split()
+#                 name = parts[2]
+#                 addr_type = parts[4]   # object или group
+#
+#                 members = []
+#                 i += 1
+#                 while i < len(self.lines):
+#                     curr_line = self.lines[i].strip()
+#                     if curr_line == "#" or curr_line.startswith("ip address-set ") or not curr_line:
+#                         break
+#                     if curr_line.startswith("address "):
+#                         members.append(curr_line)
+#                     i += 1
+#
+#                 address_sets[name] = {
+#                     "type": addr_type,
+#                     "members": members,
+#                     "text": line
+#                 }
+#                 continue
+#
+#             i += 1
+#         return address_sets
+#
+#     def _parse_member(self, member_line: str):
+#         """Разбирает одну строку address ..."""
+#         parts = member_line.split()
+#
+#         # address <seq> IP mask <mask>
+#         if len(parts) >= 5 and parts[1].isdigit() and parts[3] == "mask":
+#             ip = parts[2]
+#             mask = parts[4]
+#             try:
+#                 net = ipaddress.ip_network(f"{ip}/{mask}", strict=False)
+#                 return {
+#                     "text": member_line,
+#                     "type": "network" if int(mask) < 32 else "host",
+#                     "network": net
+#                 }
+#             except ValueError:
+#                 pass
+#
+#         # address <seq> range START END
+#         elif len(parts) >= 5 and parts[3] == "range":
+#             try:
+#                 start = ipaddress.ip_address(parts[4])
+#                 end = ipaddress.ip_address(parts[5])
+#                 return {
+#                     "text": member_line,
+#                     "type": "range",
+#                     "start": start,
+#                     "end": end
+#                 }
+#             except ValueError:
+#                 pass
+#
+#         return None
+#
+#     def _resolve_address_set(self, name, visited=None):
+#         """Рекурсивно раскрывает address-set (включая вложенные группы)"""
+#         if visited is None:
+#             visited = set()
+#         if name in visited:
+#             return []  # защита от циклов
+#         visited.add(name)
+#
+#         if name not in self.all_address_sets:
+#             return []
+#
+#         addr_set = self.all_address_sets[name]
+#         result = []
+#
+#         for member in addr_set.get("members", []):
+#             parsed = self._parse_member(member)
+#             if parsed:
+#                 result.append(parsed)
+#             else:
+#                 # Проверяем, не является ли это ссылкой на другой address-set
+#                 # В Huawei group может содержать: address X address-set NAME
+#                 if "address-set" in member:
+#                     try:
+#                         ref_name = member.split("address-set")[-1].strip().split()[0]
+#                         result.extend(self._resolve_address_set(ref_name, visited.copy()))
+#                     except:
+#                         pass
+#
+#         return result
+#
+#     def get_object_group(self, group_name):
+#         """Основной метод — возвращает раскрытые объекты"""
+#         if group_name not in self.all_address_sets:
+#             return []
+#
+#         addr_set = self.all_address_sets[group_name]
+#
+#         # Если это type object — просто парсим его членов
+#         if addr_set["type"] == "object":
+#             objects = []
+#             for member in addr_set["members"]:
+#                 parsed = self._parse_member(member)
+#                 if parsed:
+#                     objects.append(parsed)
+#             return objects
+#
+#         # Если это type group — рекурсивно раскрываем
+#         return self._resolve_address_set(group_name)
+#
+#     def check_ip(self, objects, ip):
+#         """Подсветка совпадений (совместимо со всеми остальными парсерами)"""
+#         if not ip:
+#             return [(obj.get("text", ""), False) for obj in objects]
+#
+#         try:
+#             target = ipaddress.ip_network(ip, strict=False)
+#         except ValueError:
+#             try:
+#                 target = ipaddress.ip_network(ip + "/32")
+#             except ValueError:
+#                 return [(obj.get("text", ""), False) for obj in objects]
+#
+#         result = []
+#         for obj in objects:
+#             match = False
+#             obj_type = obj.get("type")
+#
+#             if obj_type in ["host", "network"]:
+#                 if target.overlaps(obj.get("network")):
+#                     match = True
+#
+#             elif obj_type == "range":
+#                 if (obj["start"] <= target.network_address <= obj["end"] or
+#                         obj["start"] <= target.broadcast_address <= obj["end"]):
+#                     match = True
+#
+#             result.append((obj.get("text", ""), match))
+#
+#         return result
+class HuaweiVRPParser:
+
+    def __init__(self, config_text):
+        self.config = config_text
+        self.lines = config_text.splitlines()
+        self.all_address_sets = self.parse_all_address_sets()
+
+    def parse_all_address_sets(self):
+        """Парсим все ip address-set type object/group"""
+        address_sets = {}
+        i = 0
+        while i < len(self.lines):
+            line = self.lines[i].strip()
+
+            if line.startswith("ip address-set ") and " type " in line:
+                parts = line.split()
+                name = parts[2]
+                addr_type = parts[4]  # object или group
+
+                members = []
+                i += 1
+                while i < len(self.lines):
+                    curr = self.lines[i].strip()
+                    if curr == "#" or curr.startswith("ip address-set ") or not curr:
+                        break
+                    if curr.startswith("address "):
+                        members.append(curr)
+                    i += 1
+
+                address_sets[name] = {
+                    "type": addr_type,
+                    "members": members,
+                    "text": line
+                }
+                continue
+            i += 1
+        return address_sets
+
+    def _clean_description(self, line: str) -> str:
+        """Удаляем ' description ...' из строки"""
+        if " description " in line:
+            return line.split(" description ")[0].strip()
+        return line.strip()
+
+    def _parse_member(self, member_line: str):
+        """Разбирает одну строку address"""
+        clean_line = self._clean_description(member_line)
+        parts = clean_line.split()
+
+        # Формат 1: address <seq> range START END
+        if len(parts) >= 4 and parts[1].isdigit() and parts[2] == "range":
+            try:
+                start = ipaddress.ip_address(parts[3])
+                end = ipaddress.ip_address(parts[4])
+                return {
+                    "text": self._clean_description(member_line),
+                    "type": "range",
+                    "start": start,
+                    "end": end
+                }
+            except ValueError:
+                pass
+
+        # Формат 2: address <seq> IP mask MASK
+        if len(parts) >= 5 and parts[1].isdigit() and parts[3] == "mask":
+            ip = parts[2]
+            mask = parts[4]
+            try:
+                net = ipaddress.ip_network(f"{ip}/{mask}", strict=False)
+                obj_type = "network" if int(mask) < 32 else "host"
+                return {
+                    "text": self._clean_description(member_line),
+                    "type": obj_type,
+                    "network": net
+                }
+            except ValueError:
+                pass
+
+        return None
+
+    def _resolve_address_set(self, name, visited=None):
+        """Рекурсивно раскрывает вложенные группы"""
+        if visited is None:
+            visited = set()
+        if name in visited:
+            return []
+        visited.add(name)
+
+        if name not in self.all_address_sets:
+            return []
+
+        addr_set = self.all_address_sets[name]
+        result = []
+
+        for member in addr_set.get("members", []):
+            parsed = self._parse_member(member)
+            if parsed:
+                result.append(parsed)
+            elif "address-set" in member:
+                # поддержка вложенных address-set
+                try:
+                    ref_name = member.split("address-set")[-1].strip().split()[0]
+                    result.extend(self._resolve_address_set(ref_name, visited.copy()))
+                except:
+                    pass
+
+        return result
+
+    def get_object_group(self, group_name):
+        """Главный метод"""
+        if group_name not in self.all_address_sets:
+            return []
+
+        addr_set = self.all_address_sets[group_name]
+
+        if addr_set["type"] == "object":
+            objects = [self._parse_member(m) for m in addr_set.get("members", []) if self._parse_member(m)]
+            return objects
+
+        # type group
+        return self._resolve_address_set(group_name)
+
+    def check_ip(self, objects, ip):
+        """Подсветка совпадений"""
+        if not ip:
+            return [(obj.get("text", ""), False) for obj in objects]
+
+        try:
+            target = ipaddress.ip_network(ip, strict=False)
+        except ValueError:
+            try:
+                target = ipaddress.ip_network(ip + "/32")
+            except ValueError:
+                return [(obj.get("text", ""), False) for obj in objects]
+
+        result = []
+        for obj in objects:
+            match = False
+            if obj.get("type") in ["host", "network"] and "network" in obj:
+                if target.overlaps(obj["network"]):
+                    match = True
+            elif obj.get("type") == "range" and "start" in obj and "end" in obj:
+                if (obj["start"] <= target.network_address <= obj["end"] or
+                        obj["start"] <= target.broadcast_address <= obj["end"]):
+                    match = True
+
+            result.append((obj.get("text", ""), match))
+
+        return result

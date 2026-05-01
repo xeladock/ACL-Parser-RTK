@@ -1215,42 +1215,60 @@ class HuaweiParser3:
         self.firewall_rules = []          # Новый стиль (Firewall)
         self.address_sets = {}
         self.parse()
+
     def _parse_address_set(self, start_idx):
-        i = start_idx
-        name = None
+        """Исправленный надёжный парсинг address-set для формата Huawei"""
+        i = start_idx - 1
+        line = self.config_lines[i].strip()
+
+        parts = line.split()
+        if len(parts) < 3 or parts[1] != "address-set":
+            return start_idx
+
+        name = parts[2]
         specs = []
 
+        i = start_idx
         while i < len(self.config_lines):
             line = self.config_lines[i].strip()
-            if not line or line.startswith("ip address-set") or line.startswith("#"):
+            if not line or line.startswith(("ip address-set", "#", "rule name", "security-policy")):
                 break
 
             if line.startswith("address "):
                 parts = line.split()
-                if len(parts) >= 4 and parts[2] == "mask":
-                    try:
-                        net = ipaddress.IPv4Network(f"{parts[3]}/{parts[4]}", strict=False)
-                        specs.append(str(net))
-                    except:
-                        specs.append(f"{parts[3]}/32")
-                elif len(parts) >= 3:
-                    specs.append(f"{parts[2]}/32")
+                try:
+                    if "mask" in parts:
+                        mask_idx = parts.index("mask")
+                        # Правильная логика для твоего формата: address X IP mask MASK
+                        if mask_idx >= 3 and mask_idx + 1 < len(parts):
+                            ip_part = parts[mask_idx - 1]      # IP перед "mask"
+                            mask_str = parts[mask_idx + 1]     # значение маски после "mask"
+                            net = ipaddress.IPv4Network(f"{ip_part}/{mask_str}", strict=False)
+                            specs.append(str(net))
+                            print(f"[DEBUG ADDRESS] SUCCESS: {line} → {net}")
+                            i += 1
+                            continue
+
+                    # Fallback
+                    for p in parts:
+                        if p.count('.') == 3:
+                            try:
+                                ipaddress.IPv4Address(p)
+                                specs.append(f"{p}/32")
+                                print(f"[DEBUG ADDRESS] fallback: {p}/32")
+                            except:
+                                pass
+                except Exception as e:
+                    print(f"[DEBUG ADDRESS ERROR] {line} -> {e}")
 
             i += 1
 
-        # Ищем имя address-set (строка перед "type object" или "type group")
-        # Простой вариант — берём предыдущую строку
-        for j in range(start_idx - 5, start_idx):
-            if j >= 0 and "address-set" in self.config_lines[j]:
-                parts = self.config_lines[j].strip().split()
-                if len(parts) >= 3:
-                    name = parts[2]
-                    break
-
         if name:
             self.address_sets[name] = specs
+            print(f"[DEBUG ADDRESS-SET] Parsed '{name}' → {specs}")
 
         return i
+
     @classmethod
     def from_local_file(cls, filename, src_ip, dst_ip, base_dir="config_files_clear", encoding="utf-8", strict_mode=False):
         for root, _, files in os.walk(base_dir):
@@ -1497,31 +1515,39 @@ class HuaweiParser3:
         except ValueError:
             return -1, -2
 
-    def _spec_intersects(self, spec1, spec2, strict_mode):
+    def _spec_intersects(self, spec_search, spec_rule, strict_mode):
         """
-        spec1 - поисковый запрос пользователя
-        spec2 - значение из правила (IP/сеть или имя address-set)
+        spec_search - запрос пользователя (IP, сеть, any)
+        spec_rule   - значение из правила (IP/сеть или имя address-set)
         """
-        if spec1 is None or spec2 is None:
+        if spec_search is None or spec_rule is None:
             return False
 
         # any логика
-        if spec1 == "any" and spec2 == "any":
+        if spec_search == "any" and spec_rule == "any":
             return True
-        if spec1 == "any" or spec2 == "any":
+        if spec_search == "any" or spec_rule == "any":
             return not strict_mode
 
-        # === Новый блок: работа с address-set ===
-        is_spec1_address_set = not (spec1[0].isdigit() if spec1 else False)
-        is_spec2_address_set = not (spec2[0].isdigit() if spec2 else False)
+        # === 1. В ПРАВИЛЕ лежит address-set ===
+        if spec_rule in self.address_sets:
+            print(f"[DEBUG INTERSECT] address-set '{spec_rule}' contains: {self.address_sets[spec_rule]}")
+            for addr in self.address_sets[spec_rule]:
+                if self._ip_matches_spec(spec_search, addr, strict_mode):
+                    print(f"[DEBUG INTERSECT] MATCH! {spec_search} inside address-set '{spec_rule}'")
+                    return True
+            print(f"[DEBUG INTERSECT] No match for {spec_search} in address-set '{spec_rule}'")
+            return False
 
-        if is_spec1_address_set or is_spec2_address_set:
-            # Если хотя бы один — address-set, то совпадение только по точному имени
-            return spec1 == spec2
+        # === 2. Пользователь ищет по имени address-set ===
+        if spec_search in self.address_sets:
+            return spec_search == spec_rule
 
-        # === Оба значения — нормальные IP или сети ===
-        min1, max1 = self._get_min_max(spec1)
-        min2, max2 = self._get_min_max(spec2)
+        # === 3. Обычное сравнение IP/сеть <-> IP/сеть ===
+        return self._ip_matches_spec(spec_search, spec_rule, strict_mode)
+    def _ip_matches_spec(self, search, rule_spec, strict_mode):
+        min1, max1 = self._get_min_max(search)
+        min2, max2 = self._get_min_max(rule_spec)
 
         if min1 == -1 or min2 == -1:
             return False
@@ -1533,9 +1559,10 @@ class HuaweiParser3:
             return min1 == min2 and max1 == max2
         else:
             if is_single_search:
-                return overlap          # IP входит в сеть
+                return overlap
             else:
-                return min1 == min2 and max1 == max2   # сети строго
+                return min1 == min2 and max1 == max2
+
     def find_acl_matches(self, src_ip, dst_ip, strict_mode=False):
         src_spec_search = self._parse_search(src_ip)
         dst_spec_search = self._parse_search(dst_ip)

@@ -969,7 +969,7 @@ class ParserApp:
         fix_entry_shortcuts(pass_entry)
         limit_entry_length(pass_entry,64)
 
-        tk.Label(win, text="NetBox API token:",bg="#f0f0f0").grid(row=2, column=0, sticky="e",padx=(0,5), pady=5)
+        tk.Label(win, text="NetBox API token:",bg="#f0f0f0").grid(row=2, column=0, sticky="e",padx=(0,5))
         token_entry = tk.Entry(win, width=60, show="*")
         token_entry.grid(row=2, column=1,sticky="nw", padx=5)
         fix_entry_shortcuts(token_entry)
