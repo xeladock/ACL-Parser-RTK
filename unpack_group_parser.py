@@ -572,7 +572,417 @@ class CiscoFirepowerParser:
             result.append((obj.get("text", ""), match))
 
         return result
+class CiscoFirepowerParser2:
 
+    def __init__(self, config_text):
+        self.config = config_text
+        self.lines = config_text.splitlines()
+        # Все object network и object-group network
+        self.all_objects = self.parse_all_objects()
+
+    def parse_all_objects(self):
+        """Парсим ВСЕ object network и object-group network"""
+        objects = {}
+        i = 0
+        while i < len(self.lines):
+            line = self.lines[i].strip()
+
+            # object network (одиночный)
+            if line.startswith("object network "):
+                name = line.split(maxsplit=2)[2]
+                # ищем содержимое
+                for k in range(1, 6):
+                    if i + k >= len(self.lines):
+                        break
+                    nxt = self.lines[i + k].strip()
+                    if not nxt or nxt.startswith("description"):
+                        continue
+                    parts = nxt.split()
+
+                    if nxt.startswith("host ") and len(parts) >= 2:
+                        ip = parts[1]
+                        objects[name] = {
+                            "type": "host",
+                            "network": ipaddress.ip_network(ip + "/32"),
+                            "text": nxt
+                        }
+                        i += k
+                        break
+                    elif nxt.startswith("range ") and len(parts) >= 3:
+                        start = ipaddress.ip_address(parts[1])
+                        end = ipaddress.ip_address(parts[2])
+                        objects[name] = {
+                            "type": "range",
+                            "start": start,
+                            "end": end,
+                            "text": nxt
+                        }
+                        i += k
+                        break
+                    elif nxt.startswith("subnet ") or (len(parts) == 2 and self._looks_like_network(parts[0])):
+                        try:
+                            if nxt.startswith("subnet "):
+                                ip, mask = parts[1], parts[2]
+                            else:
+                                ip, mask = parts[0], parts[1]
+                            net = ipaddress.ip_network(f"{ip}/{mask}", strict=False)
+                            objects[name] = {
+                                "type": "network",
+                                "network": net,
+                                "text": nxt
+                            }
+                            i += k
+                            break
+                        except ValueError:
+                            pass
+                else:
+                    objects[name] = {"type": "object", "text": line}
+                i += 1
+                continue
+
+            # object-group network
+            if line.startswith("object-group network "):
+                name = line.split(maxsplit=2)[2]
+                group_lines = []
+                i += 1
+                while i < len(self.lines) and self.lines[i].startswith(" "):
+                    group_lines.append(self.lines[i].strip())
+                    i += 1
+                objects[name] = {
+                    "type": "group",
+                    "members": group_lines,
+                    "text": line
+                }
+                continue
+
+            i += 1
+        return objects
+
+    def _looks_like_network(self, s: str) -> bool:
+        """Проверяем, похожа ли строка на IP-адрес сети"""
+        return s.count('.') == 3 and not s.startswith("host")
+
+    def get_object_group(self, group_name):
+        """Теперь НЕ раскрываем вложенные object/group — показываем как есть"""
+        group_start = None
+        objects = []
+
+        # Ищем object-group
+        for i, line in enumerate(self.lines):
+            if line.strip() == f"object-group network {group_name}":
+                group_start = i
+                break
+
+        # Если это object network (не group)
+        if group_start is None:
+            if group_name in self.all_objects:
+                obj = self.all_objects[group_name]
+                d = {
+                    "text": obj.get("text", group_name),
+                    "type": obj["type"]
+                }
+                if "network" in obj:
+                    d["network"] = obj["network"]
+                if "start" in obj and "end" in obj:
+                    d["start"] = obj["start"]
+                    d["end"] = obj["end"]
+                objects.append(d)
+            return objects
+
+        # Парсим содержимое object-group (без рекурсивного раскрытия)
+        for line in self.lines[group_start + 1:]:
+            if not line.startswith(" "):
+                break
+            line_stripped = line.strip()
+            if not line_stripped or line_stripped.startswith("description"):
+                continue
+
+            if line_stripped.startswith("network-object host "):
+                ip = line_stripped.split()[2]
+                objects.append({
+                    "text": line_stripped,
+                    "type": "host",
+                    "network": ipaddress.ip_network(ip + "/32")
+                })
+
+            elif line_stripped.startswith("network-object object "):
+                ref_name = line_stripped.split()[2]
+                objects.append({
+                    "text": f"object {ref_name}",
+                    "type": "object_ref",
+                    "name": ref_name
+                })
+
+            elif line_stripped.startswith("network-object "):
+                # network-object IP MASK или network-object IP/prefix
+                parts = line_stripped.split()
+                try:
+                    if len(parts) == 3 and not parts[1].startswith("host"):
+                        net = ipaddress.ip_network(f"{parts[1]}/{parts[2]}", strict=False)
+                        objects.append({
+                            "text": line_stripped,
+                            "type": "network",
+                            "network": net
+                        })
+                    elif "/" in parts[1]:
+                        net = ipaddress.ip_network(parts[1], strict=False)
+                        objects.append({
+                            "text": line_stripped,
+                            "type": "network",
+                            "network": net
+                        })
+                except ValueError:
+                    pass
+
+            elif line_stripped.startswith("group-object "):
+                ref_name = line_stripped.split()[1]
+                objects.append({
+                    "text": f"object {ref_name}",   # или "group-object {ref_name}"
+                    "type": "object_ref",
+                    "name": ref_name
+                })
+
+        return objects
+
+    def check_ip(self, objects, ip):
+        """Подсветка только для реальных IP, object_ref не подсвечиваем"""
+        if not ip:
+            return [(obj.get("text", ""), False) for obj in objects]
+
+        try:
+            target = ipaddress.ip_network(ip, strict=False)
+        except ValueError:
+            try:
+                target = ipaddress.ip_network(ip + "/32")
+            except ValueError:
+                return [(obj.get("text", ""), False) for obj in objects]
+
+        result = []
+        for obj in objects:
+            match = False
+            obj_type = obj.get("type")
+
+            if obj_type in ["host", "network"]:
+                if target.overlaps(obj.get("network")):
+                    match = True
+            elif obj_type == "range":
+                if (obj["start"] <= target.network_address <= obj["end"] or
+                        obj["start"] <= target.broadcast_address <= obj["end"]):
+                    match = True
+            # object_ref не подсвечиваем — это просто ссылка
+
+            result.append((obj.get("text", ""), match))
+
+        return result
+class CiscoFirepowerParser3:
+
+        def __init__(self, config_text):
+            self.config = config_text
+            self.lines = config_text.splitlines()
+            # Все object network и object-group network для проверки вложенных ссылок
+            self.all_objects = self.parse_all_objects()
+
+        def parse_all_objects(self):
+            """Парсим ВСЕ object network и object-group network"""
+            objects = {}
+            i = 0
+            while i < len(self.lines):
+                line = self.lines[i].strip()
+
+                # object network (одиночный)
+                if line.startswith("object network "):
+                    name = line.split(maxsplit=2)[2]
+                    for k in range(1, 6):
+                        if i + k >= len(self.lines):
+                            break
+                        nxt = self.lines[i + k].strip()
+                        if not nxt or nxt.startswith("description"):
+                            continue
+                        parts = nxt.split()
+
+                        if nxt.startswith("host ") and len(parts) >= 2:
+                            ip = parts[1]
+                            objects[name] = {
+                                "type": "host",
+                                "network": ipaddress.ip_network(ip + "/32"),
+                                "text": nxt
+                            }
+                            i += k
+                            break
+                        elif nxt.startswith("range ") and len(parts) >= 3:
+                            start = ipaddress.ip_address(parts[1])
+                            end = ipaddress.ip_address(parts[2])
+                            objects[name] = {
+                                "type": "range",
+                                "start": start,
+                                "end": end,
+                                "text": nxt
+                            }
+                            i += k
+                            break
+                        elif nxt.startswith("subnet ") or (len(parts) == 2):
+                            try:
+                                if nxt.startswith("subnet "):
+                                    ip, mask = parts[1], parts[2]
+                                else:
+                                    ip, mask = parts[0], parts[1]
+                                net = ipaddress.ip_network(f"{ip}/{mask}", strict=False)
+                                objects[name] = {
+                                    "type": "network",
+                                    "network": net,
+                                    "text": nxt
+                                }
+                                i += k
+                                break
+                            except ValueError:
+                                pass
+                    else:
+                        objects[name] = {"type": "object", "text": line}
+                    i += 1
+                    continue
+
+                # object-group network
+                if line.startswith("object-group network "):
+                    name = line.split(maxsplit=2)[2]
+                    group_lines = []
+                    i += 1
+                    while i < len(self.lines) and self.lines[i].startswith(" "):
+                        group_lines.append(self.lines[i].strip())
+                        i += 1
+                    objects[name] = {
+                        "type": "group",
+                        "members": group_lines,
+                        "text": line
+                    }
+                    continue
+
+                i += 1
+            return objects
+
+        def get_object_group(self, group_name):
+            """Показываем object_ref без раскрытия"""
+            group_start = None
+            objects = []
+
+            for i, line in enumerate(self.lines):
+                if line.strip() == f"object-group network {group_name}":
+                    group_start = i
+                    break
+
+            # Если указали object network напрямую
+            if group_start is None:
+                if group_name in self.all_objects:
+                    obj = self.all_objects[group_name]
+                    d = {"text": obj.get("text", group_name), "type": obj["type"]}
+                    if "network" in obj:
+                        d["network"] = obj["network"]
+                    if "start" in obj and "end" in obj:
+                        d["start"] = obj["start"]
+                        d["end"] = obj["end"]
+                    objects.append(d)
+                return objects
+
+            # Парсим object-group (без рекурсии)
+            for line in self.lines[group_start + 1:]:
+                if not line.startswith(" "):
+                    break
+                line_stripped = line.strip()
+                if not line_stripped or line_stripped.startswith("description"):
+                    continue
+
+                if line_stripped.startswith("network-object host "):
+                    ip = line_stripped.split()[2]
+                    objects.append({
+                        "text": line_stripped,
+                        "type": "host",
+                        "network": ipaddress.ip_network(ip + "/32")
+                    })
+
+                elif line_stripped.startswith("network-object object "):
+                    ref_name = line_stripped.split()[2]
+                    objects.append({
+                        "text": f"object {ref_name}",
+                        "type": "object_ref",
+                        "name": ref_name
+                    })
+
+                elif line_stripped.startswith("network-object "):
+                    parts = line_stripped.split()
+                    try:
+                        if len(parts) == 3 and not parts[1].startswith("host"):
+                            net = ipaddress.ip_network(f"{parts[1]}/{parts[2]}", strict=False)
+                            objects.append({
+                                "text": line_stripped,
+                                "type": "network",
+                                "network": net
+                            })
+                        elif "/" in parts[1]:
+                            net = ipaddress.ip_network(parts[1], strict=False)
+                            objects.append({
+                                "text": line_stripped,
+                                "type": "network",
+                                "network": net
+                            })
+                    except ValueError:
+                        pass
+
+                elif line_stripped.startswith("group-object "):
+                    ref_name = line_stripped.split()[1]
+                    objects.append({
+                        "text": f"object {ref_name}",
+                        "type": "object_ref",
+                        "name": ref_name
+                    })
+
+            return objects
+
+        def check_ip(self, objects, ip):
+            """Подсветка с учётом вложенных object_ref"""
+            if not ip:
+                return [(obj.get("text", ""), False) for obj in objects]
+
+            try:
+                target = ipaddress.ip_network(ip, strict=False)
+            except ValueError:
+                try:
+                    target = ipaddress.ip_network(ip + "/32")
+                except ValueError:
+                    return [(obj.get("text", ""), False) for obj in objects]
+
+            result = []
+
+            for obj in objects:
+                match = False
+                obj_type = obj.get("type")
+
+                # Прямые адреса / сети / диапазоны
+                if obj_type in ["host", "network"]:
+                    if target.overlaps(obj.get("network")):
+                        match = True
+
+                elif obj_type == "range":
+                    if (obj["start"] <= target.network_address <= obj["end"] or
+                            obj["start"] <= target.broadcast_address <= obj["end"]):
+                        match = True
+
+                # ВЛОЖЕННЫЕ object_ref — проверяем, есть ли IP внутри них
+                elif obj_type == "object_ref":
+                    name = obj.get("name")
+                    if name in self.all_objects:
+                        ref = self.all_objects[name]
+                        ref_type = ref.get("type")
+
+                        if ref_type in ["host", "network"]:
+                            if target.overlaps(ref.get("network")):
+                                match = True
+                        elif ref_type == "range":
+                            if (ref["start"] <= target.network_address <= ref["end"] or
+                                    ref["start"] <= target.broadcast_address <= ref["end"]):
+                                match = True
+
+                result.append((obj.get("text", ""), match))
+
+            return result
 class CiscoNexusParser:
 
     def __init__(self, config_text):
@@ -729,6 +1139,172 @@ class CiscoNexusParser:
             if obj.get("type") in ["host", "network"]:
                 if target.overlaps(obj["network"]):
                     match = True
+            result.append((obj.get("text", ""), match))
+
+        return result
+class FortigateParser:
+
+    def __init__(self, config_text):
+        self.config = config_text
+        self.lines = config_text.splitlines()
+        # Словарь всех address/address-group для поддержки ссылок
+        self.all_objects = self.parse_all_objects()
+
+    def parse_all_objects(self):
+        """Парсим все address и addrgrp (edit блоки)"""
+        objects = {}
+        i = 0
+        while i < len(self.lines):
+            line = self.lines[i].strip()
+
+            if line.startswith('edit "'):
+                # Извлекаем имя объекта
+                name = line.split('"')[1]
+                members = []
+                subnet = None
+                start_ip = None
+                end_ip = None
+                obj_type = "group"
+
+                i += 1
+                while i < len(self.lines):
+                    curr = self.lines[i].strip()
+                    if curr.startswith('next') or curr.startswith('end'):
+                        break
+
+                    if curr.startswith('set member '):
+                        # извлекаем все объекты в member
+                        # убираем 'set member ' и кавычки
+                        member_str = curr[11:].strip()
+                        # Разбиваем по кавычкам
+                        import re
+                        member_list = re.findall(r'"([^"]+)"', member_str)
+                        members.extend(member_list)
+
+                    elif curr.startswith('set subnet '):
+                        parts = curr.split()
+                        if len(parts) >= 4:
+                            ip = parts[2]
+                            mask = parts[3]
+                            try:
+                                net = ipaddress.ip_network(f"{ip}/{mask}", strict=False)
+                                subnet = net
+                                obj_type = "network"
+                            except ValueError:
+                                pass
+
+                    elif curr.startswith('set type iprange'):
+                        obj_type = "range"
+
+                    elif curr.startswith('set start-ip '):
+                        start_ip = curr.split()[2]
+
+                    elif curr.startswith('set end-ip '):
+                        end_ip = curr.split()[2]
+
+                    i += 1
+
+                # Сохраняем объект
+                if obj_type == "range" and start_ip and end_ip:
+                    objects[name] = {
+                        "type": "range",
+                        "start": ipaddress.ip_address(start_ip),
+                        "end": ipaddress.ip_address(end_ip),
+                        "text": f"iprange {start_ip} - {end_ip}"
+                    }
+                elif subnet:
+                    objects[name] = {
+                        "type": "network",
+                        "network": subnet,
+                        "text": f"subnet {subnet.network_address} {subnet.netmask}"
+                    }
+                else:
+                    # group или неизвестный объект
+                    objects[name] = {
+                        "type": "group",
+                        "members": members,
+                        "text": name
+                    }
+
+            i += 1
+        return objects
+
+    def get_object_group(self, group_name):
+        """Возвращает членов группы БЕЗ авто-раскрытия вложенных объектов"""
+        objects = []
+
+        if group_name in self.all_objects:
+            obj = self.all_objects[group_name]
+
+            if obj["type"] != "group":
+                # Это одиночный address (subnet или range)
+                d = {
+                    "text": obj.get("text", group_name),
+                    "type": obj["type"]
+                }
+                if "network" in obj:
+                    d["network"] = obj["network"]
+                if "start" in obj and "end" in obj:
+                    d["start"] = obj["start"]
+                    d["end"] = obj["end"]
+                objects.append(d)
+                return objects
+
+            # Это group — показываем members как ссылки
+            for member in obj.get("members", []):
+                objects.append({
+                    "text": f'member "{member}"',
+                    "type": "object_ref",
+                    "name": member
+                })
+
+            return objects
+
+        # Если объект не найден
+        return []
+
+    def check_ip(self, objects, ip):
+        """Подсветка с учётом вложенных object_ref"""
+        if not ip:
+            return [(obj.get("text", ""), False) for obj in objects]
+
+        try:
+            target = ipaddress.ip_network(ip, strict=False)
+        except ValueError:
+            try:
+                target = ipaddress.ip_network(ip + "/32")
+            except ValueError:
+                return [(obj.get("text", ""), False) for obj in objects]
+
+        result = []
+
+        for obj in objects:
+            match = False
+            obj_type = obj.get("type")
+
+            # Прямые адреса
+            if obj_type in ["host", "network"]:
+                if target.overlaps(obj.get("network")):
+                    match = True
+
+            elif obj_type == "range":
+                if (obj["start"] <= target.network_address <= obj["end"] or
+                        obj["start"] <= target.broadcast_address <= obj["end"]):
+                    match = True
+
+            # Вложенные ссылки (member "XXX")
+            elif obj_type == "object_ref":
+                name = obj.get("name")
+                if name in self.all_objects:
+                    ref = self.all_objects[name]
+                    if ref["type"] in ["network", "host"]:
+                        if target.overlaps(ref.get("network")):
+                            match = True
+                    elif ref["type"] == "range":
+                        if (ref["start"] <= target.network_address <= ref["end"] or
+                                ref["start"] <= target.broadcast_address <= ref["end"]):
+                            match = True
+
             result.append((obj.get("text", ""), match))
 
         return result

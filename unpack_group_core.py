@@ -2,7 +2,7 @@ import ipaddress
 import os
 
 from get_acl_from_local.unpack_group_parser import HuaweiVRPParser
-from unpack_group_parser import CiscoASAParser, CiscoIOSXEParser, CiscoFirepowerParser, CiscoNexusParser, CiscoPIXParser, HuaweiVRPParser
+from unpack_group_parser import CiscoASAParser, CiscoIOSXEParser, CiscoFirepowerParser3, CiscoNexusParser, CiscoPIXParser, HuaweiVRPParser, FortigateParser
 
 BASE_DIR = "config_files_clear"
 
@@ -41,10 +41,13 @@ def detect_vendor(path):
         return "cisco_fxos"
     if "Cisco NX-OS" in path:
         return "cisco_nxos"
+    if "FortiOS" in path:
+        return "fortigate"
     if "Cisco PIX" in path:
         return "cisco_pix"
     if "Huawei VRP" in path:
         return "huawei_vrp"
+
     return None
 def get_object_group(device, group):
 
@@ -63,9 +66,11 @@ def get_object_group(device, group):
     elif vendor == "cisco_ios_xe":
         parser = CiscoIOSXEParser(config)
     elif vendor == "cisco_fxos":
-        parser = CiscoFirepowerParser(config)
+        parser = CiscoFirepowerParser3(config)
     elif vendor == "cisco_nxos":
         parser = CiscoNexusParser(config)
+    elif vendor == "fortigate":
+        parser = FortigateParser(config)
     elif vendor == "cisco_pix":
         parser = CiscoPIXParser(config)
     elif vendor == "huawei_vrp":
