@@ -37,7 +37,7 @@ def run_pap(parent=None):
         # Шаг 1 — подготовка поля вывода
         output_field.config(state='normal')
         output_field.delete("1.0", tk.END)
-        output_field.insert(tk.END, "🔄 Запрос выполняется, пожалуйста, подождите...\n")
+        output_field.insert(tk.END, "🔄 Запрос выполняется. Пожалуйста, подождите...\n")
         output_field.config(state='disabled')
 
         # Шаг 2 — функция обновления результатов
@@ -53,7 +53,7 @@ def run_pap(parent=None):
 
             # Вставляем результат + снова "🔄 ..."
             lines.append(text)
-            lines.append("🔄 Запрос выполняется, пожалуйста, подождите...")
+            lines.append("🔄 Запрос выполняется. Пожалуйста, подождите...")
 
             output_field.delete("1.0", tk.END)
             output_field.insert("1.0", "\n".join(lines) + "\n")
@@ -100,8 +100,9 @@ def run_pap(parent=None):
 
                 if not output_written['value']:
                     lines = ["Наименований не найдено.\n"]
+                    timer.cancel()
 
-                lines.append("✅ Поиск завершён.")
+                lines.append("✅ Поиск в СТУ завершён.")
 
                 output_field.delete("1.0", tk.END)
                 output_field.insert("1.0", "\n".join(lines) + "\n")
@@ -112,6 +113,8 @@ def run_pap(parent=None):
                 calculate_button.config(text="Сброс")
                 global has_run
                 has_run = True
+                print("has_run is", has_run)
+                print("timer is", timer)
                 if timer is not None:
                     timer.cancel()
 
@@ -121,7 +124,7 @@ def run_pap(parent=None):
 
     # Состояние: рассчитывали ли уже?
 
-    PLACEHOLDER = "Вставьте сюда список подсетей"
+    PLACEHOLDER = "Вставьте сюда список подсетей/адресов"
     def clear_placeholder(event=None):
         if input_field.get("1.0", "end-1c").strip() == PLACEHOLDER:
             input_field.delete("1.0", tk.END)
@@ -157,38 +160,44 @@ def run_pap(parent=None):
             output_field.delete("1.0", tk.END)
             output_field.config(state='disabled')
 
-            calculate_button.config(text="Найти")
+            calculate_button.config(text="Поиск")
             has_run = False
             stop_event.clear()
             return
 
         input_text = input_field.get("1.0", tk.END).strip()
-
+        print("has_run2 is", has_run)
+        print("input_text is", input_text)
         if not input_text or input_text == PLACEHOLDER or not is_token_ascii(token):
             output_field.config(state='normal')  # разблокировать поле
             output_field.delete("1.0", tk.END)  # очистить
             output_field.insert(tk.END, "Токен и/или данные отсутствуют/неверны.\nНажмите 'Сброс' и добавьте/исправьте информацию.")
             output_field.config(state='disabled')  # заблокировать снова
         else:
-            write_to_output("🔄 Запрос выполняется, пожалуйста, подождите...\n", tag="italic") # write_to_output("🔄 Запрос выполняется, пожалуйста подождите...\n", tag="italic")
+            write_to_output("⏳ Запрос выполняется. Пожалуйста, подождите...\n", tag="italic") # write_to_output("🔄 Запрос выполняется, пожалуйста подождите...\n", tag="italic")
             thread = threading.Thread(target=cnt, args=(token,),daemon=True)
             thread.start()
-
+        print("input_text2 is", input_text)
         def timeout_check():
-            if not search_done['value']:
+            if not search_done['value'] or not input_text or input_text == PLACEHOLDER:
                 stop_event.set() # сигнал потокам, что надо завершиться
-            if output_field.winfo_exists():
+                print("код прошёл")
+            elif output_field.winfo_exists():
+                print("output_place is",output_field.winfo_exists())
                 output_field.config(state='normal')
                 output_field.delete("1.0", tk.END)
-                output_field.insert(tk.END, "⏳ Программа остановлена, т.к. выполняется слишком долго (более 2 минут). Измените количество искомых сетей.")
+                output_field.insert(tk.END, "⛔ Программа остановлена, т.к. выполняется слишком долго (более минуты). Измените количество искомых объектов.")
                 output_field.config(state='disabled')
 
-        timer = threading.Timer(10, timeout_check)
+        timer = threading.Timer(2, timeout_check)
         timer.daemon = True
         timer.start()
 
     ###
     ###
+        if input_text == PLACEHOLDER:
+            input_field.delete("1.0", tk.END)
+            input_field.config(fg='black', font=('Arial', 10, 'normal'))
         input_field.config(state='disabled')
         calculate_button.config(text="Сброс")
         has_run = True
@@ -199,6 +208,7 @@ def run_pap(parent=None):
     root.title("Поиск наименований систем в СТУ Netbox.rt.ru")
     root.geometry("800x700")
     root.resizable(False, False)
+    root.configure(bg="#f0f0f0")
 
 
     def toggle_token_visibility():
@@ -255,7 +265,7 @@ def run_pap(parent=None):
             pass
         return 'break'
 
-    tk.Label(root, text="API Token NetBox:").pack(anchor='w', padx=10, pady=(10, 0))
+    tk.Label(root, text="API Token NetBox:",bg="#f0f0f0").pack(anchor='w', padx=10, pady=(10, 0))
     token_entry = tk.Entry(root, width=70, show="*")  # ← скрытый токен (как пароль)
     token_entry.pack(padx=10, pady=(0, 10))
     token_entry.bind('<Control-a>', select_all_token)
@@ -269,9 +279,13 @@ def run_pap(parent=None):
 
     show_token_checkbox = tk.Checkbutton(
         root,
+        bg="#f0f0f0",
         text="Показать токен",
         variable=show_token_var,
         command=toggle_token_visibility,
+        activebackground="#f0f0f0",
+        highlightthickness=0,  # убираем рамку фокуса
+        bd=0,
         font=('Arial', 10, 'bold')
     )
 
@@ -280,7 +294,7 @@ def run_pap(parent=None):
 
 
     # Поле ввода
-    tk.Label(root, text="Ввод:").pack(anchor='w', padx=10, pady=(10, 0))
+    tk.Label(root, text="Ввод:",bg="#f0f0f0").pack(anchor='w', padx=10, pady=(10, 0))
     input_field = scrolledtext.ScrolledText(root, width=90, height=10)
     input_field.pack(padx=10, pady=(0, 10))
     input_field.insert("1.0", PLACEHOLDER)
@@ -294,14 +308,15 @@ def run_pap(parent=None):
 
 
     # Кнопка "Рассчитать"
-    calculate_button = tk.Button(root, text="Найти", font=('Arial', 10, 'bold'), bg="#e0e0e0", command=process_input, takefocus=1)
-    calculate_button.place(relx=0.5, rely=0.5, anchor='center')
-    calculate_button.pack(pady=5)
-    calculate_button.bind('<Return>', lambda event: process_input())
+    calculate_button = tk.Button(root, text="Поиск", font=('Arial', 10, 'bold'), bg="#e0e0e0", command=process_input, takefocus=1)
+    # calculate_button.place(relx=0.5, rely=0.5, anchor='center')
+    calculate_button.pack(pady=0)
+    calculate_button.bind('<Control-s>', lambda event: process_input())
+    calculate_button.bind('<Control-S>', lambda event: process_input())
 
     # root.bind('<Return>', lambda event: calculate_button.invoke())
     # Поле вывода (только для чтения)
-    tk.Label(root, text="Вывод:").pack(anchor='w', padx=10)
+    tk.Label(root, text="Вывод:",bg="#f0f0f0").pack(anchor='w', padx=10, pady=0)
     output_field = scrolledtext.ScrolledText(root, width=110, height=20, wrap="word", state='disabled')
     output_field.pack(padx=10, pady=(0, 10))
     output_field.bind('<Control-a>', select_all_output)
