@@ -13,6 +13,8 @@ from datetime import datetime
 import shutil
 
 from unpack_group_gui import run_og_viewer
+from gui_fgpf_2 import run_pap
+
 
 # import glossary
 
@@ -239,7 +241,7 @@ class ParserApp:
     def __init__(self, root):
         self.all_regions_var = None
         self.root = root
-        self.root.title("ACL Parser.")
+        self.root.title("ACL Parser")
         self.root.geometry("1200x835")
         self.root.configure(bg="#f0f0f0")
         self.root.resizable(True, True)
@@ -253,6 +255,7 @@ class ParserApp:
 
     def app_exit(self):
         self.root.destroy()
+        # run_pap.destroy()
 
     def show_version(self):
         messagebox.showinfo("Версия", "1.19.4. 11 марта 2026 г.")
@@ -286,6 +289,7 @@ class ParserApp:
         program_menu.add_command(label="Сохранить на диск", command=self.save_output, font=menu_font)
         program_menu.add_command(label="Удалить конфигурацию", command=self.delete_config_folder, font=menu_font)
         program_menu.add_command(label="OG Viewer", command=run_og_viewer, font=menu_font)
+        program_menu.add_command(label="PAP Viewer", command=run_pap, font=menu_font)
         program_menu.add_command(label="Выход", command=self.app_exit, font=menu_font)
         # --- МЕНЮ СПРАВВКА ---
         # help_menu = tk.Menu(menubar, tearoff=0,bg="#f0f0f0", fg="black",font=menu_font)

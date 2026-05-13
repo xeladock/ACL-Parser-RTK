@@ -118,6 +118,7 @@ def fix_entry_shortcuts(entry_widget):
 
 def run_og_viewer(parent=None):
     def search():
+
         output.config(state="normal")
         device = device_entry.get()
         if not device:
@@ -125,8 +126,7 @@ def run_og_viewer(parent=None):
             output.insert(tk.END, "Введите название устройства.")
             output.config(state="disabled")
         print("device2 is", device)
-
-            # return
+                    # return
         group = group_entry.get()
 
         # if not group:
@@ -190,6 +190,21 @@ def run_og_viewer(parent=None):
         output.config(state="disabled")
                 # print("2")
                 # print(text)
+    def clear():
+        device_entry.delete(0, tk.END)
+        group_entry.delete(0,tk.END)
+        ip_entry.delete(0,tk.END)
+        return
+    def clear_devs():
+        device_entry.delete(0, tk.END)
+        return
+    def clear_gr():
+        group_entry.delete(0, tk.END)
+        return
+    def clear_ips():
+        ip_entry.delete(0, tk.END)
+        return
+
     window = tk.Toplevel(parent)  # вместо Tk()
     window.title("Object Group Viewer")
     window.configure(bg="#f0f0f0")
@@ -217,8 +232,21 @@ def run_og_viewer(parent=None):
     ip_entry.grid(row=2, column=1, sticky="w", padx=(2, 0))
     fix_entry_shortcuts(ip_entry)
 
+    clear_btn = tk.Button(frame, text="del all", command=clear,font=("Arial", 9))
+    clear_btn.grid(row=3, column=1,sticky="e",padx=17,pady=(0,20))
+
     search_btn = tk.Button(frame, text="Поиск", command=search)
     search_btn.grid(row=3, column=1,sticky="w",padx=120,pady=(4, 4))
+
+    clear_dev_btn = tk.Button(frame, text="del", command=clear_devs,font=("Arial", 8))
+    clear_dev_btn.grid(row=0, column=1,sticky="e",padx=35)
+
+    clear_gr_btn = tk.Button(frame, text="del", command=clear_gr,font=("Arial", 8))
+    clear_gr_btn.grid(row=1, column=1,sticky="e",padx=35)
+
+    clear_ip_btn = tk.Button(frame, text="del", command=clear_ips,font=("Arial", 8))
+    clear_ip_btn.grid(row=2, column=1,sticky="e",padx=35)
+    
 
     output = scrolledtext.ScrolledText(frame, width=63, height=25)
     output.grid(row=4, column=0, columnspan=2)
