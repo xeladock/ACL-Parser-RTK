@@ -56,10 +56,12 @@ GLOSSARY_TEXT = """                     Здесь представлено оп
   • Ctrl + Shift + E - Удаление IP/действие кнопки "Сброс IP".
   • Ctrl + Shift + R - Реверс IP/действие кнопки "Реверс IP".
   • F1 - Вызов справки/Действие кнопки "Инфо"
+  • Shift + F1 - Вызов утилиты "OG Viewer"
+  • Shift + F2 - Вызов утилиты "PAP Viewer"
   • Escape - Закрыть окно.
 
 
-Версия: 1.19.5 / 30.03.26
+Версия: 1.20.2 / 18.05.2026
 """
 
 CONFIG_DIR = "config_files_clear"
@@ -258,7 +260,7 @@ class ParserApp:
         # run_pap.destroy()
 
     def show_version(self):
-        messagebox.showinfo("Версия", "1.19.4. 11 марта 2026 г.")
+        messagebox.showinfo("Версия", "1.20.5. 18 мая 2026 г.")
     # 1005
     def create_menu(self):
         # print("окно")
@@ -742,12 +744,14 @@ class ParserApp:
         self.bind_enter_to_button(self.clear_ip_btn)
         # 1010
         # self.root.bind("<Control-Shift-!>", lambda event: run_og_viewer())
-        def hotkeys(event):
-            if event.state & 0x4:  # Ctrl
-                if event.keysym == "1":
-                    run_og_viewer()
-
-        self.root.bind_all("<KeyPress>", hotkeys)
+        # def hotkeys(event):
+        #     if event.state & 0x4:  # Ctrl
+        #         if event.keysym == "1":
+        #             run_og_viewer()
+        #
+        # self.root.bind_all("<KeyPress>", hotkeys)
+        self.root.bind("<Shift-F1>", lambda e: run_og_viewer())
+        self.root.bind("<Shift-F2>", lambda e: run_pap())
         # self.root.bind("<Control-Shift-!>", lambda event: self.run_og_viewer())
         # self.bind_enter_to_button(self.save_output)
         # self.bind_enter_to_button(self.delete_config_folder)

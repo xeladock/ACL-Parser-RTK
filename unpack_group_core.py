@@ -1,7 +1,6 @@
 import ipaddress
 import os
 
-from get_acl_from_local.unpack_group_parser import HuaweiVRPParser
 from unpack_group_parser import CiscoASAParser, CiscoIOSXEParser, CiscoFirepowerParser3, CiscoNexusParser, CiscoPIXParser, HuaweiVRPParser, FortigateParser
 
 BASE_DIR = "config_files_clear"
@@ -78,7 +77,7 @@ def get_object_group(device, group):
 
 
     else:
-        return None, None, "Вендор не поддерживается."
+        return None, None, "Вендор не поддерживается или не имеет функции object-group."
     # output.config(state="disabled")
     objects = parser.get_object_group(group)
 

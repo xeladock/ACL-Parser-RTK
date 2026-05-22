@@ -7,6 +7,7 @@ has_run = False
 search_done = {'value': False}
 stop_event = threading.Event()
 timer = None
+timed_out = False
 def run_pap(parent=None):
 
     def is_valid_subnet(s):
@@ -17,9 +18,10 @@ def run_pap(parent=None):
             return False
 
     def cnt(token):
+        global timed_out
         raw_lines = input_field.get("1.0", tk.END).strip().splitlines()
         subnets = []
-        print(raw_lines)
+        # print(raw_lines)
         for line in raw_lines:
             stripped = line.strip()
             if not stripped:
@@ -30,7 +32,7 @@ def run_pap(parent=None):
 
         subnets = input_field.get("1.0", tk.END).strip().splitlines()
         subnets = [s.strip() for s in subnets if is_valid_subnet(s)]
-        print(subnets)
+        # print(subnets)
         active_threads = []
         output_written = {'value': False}  # был ли выведен хоть один результат
 
@@ -39,7 +41,7 @@ def run_pap(parent=None):
         output_field.delete("1.0", tk.END)
         output_field.insert(tk.END, "🔄 Запрос выполняется. Пожалуйста, подождите...\n")
         output_field.config(state='disabled')
-
+        calculate_button.config(state='disabled')
         # Шаг 2 — функция обновления результатов
         def insert_to_output(text):
             output_field.config(state='normal')
@@ -68,10 +70,13 @@ def run_pap(parent=None):
                 return
             try:
                 systems, log = get_systems_by_subnets([subnet], token)
+                if stop_event.is_set():  # проверяем ещё раз после долгого вызова
+                    return
                 if log:
                     result_text = f"▶ {subnet}\n" + "\n".join(log) + "\n"
                     output_field.after(0, insert_to_output, result_text)
             except Exception as e:
+                # print()
                 output_field.after(0, insert_to_output, f"⚠️ [{subnet}] ошибка: {e}")
 
         # Шаг 4 — запуск потоков
@@ -90,6 +95,9 @@ def run_pap(parent=None):
                 t.join()
 
             def finish_message():
+                global timed_out
+                if timed_out:  # ← Главная проверка
+                    return
                 output_field.config(state='normal')
                 # Удалим последнюю "ожидалку"
                 content = output_field.get("1.0", tk.END)
@@ -99,10 +107,13 @@ def run_pap(parent=None):
                     lines = lines[:-1]
 
                 if not output_written['value']:
-                    lines = ["Наименований не найдено.\n"]
+                    if not token:
+                        lines = ["Нет токена.\n"]
+                    if token:
+                        lines = ["Наименований не найдено.\n"]
                     timer.cancel()
-
-                lines.append("✅ Поиск в СТУ завершён.")
+                if token:
+                    lines.append("✅ Поиск в СТУ завершён.")
 
                 output_field.delete("1.0", tk.END)
                 output_field.insert("1.0", "\n".join(lines) + "\n")
@@ -110,11 +121,12 @@ def run_pap(parent=None):
                 output_field.config(state='disabled')
 
                 input_field.config(state='disabled')
-                calculate_button.config(text="Сброс")
+                calculate_button.config(text="Сброс",state='normal')
+                # calculate_button.config(disa)
                 global has_run
                 has_run = True
-                print("has_run is", has_run)
-                print("timer is", timer)
+                # print("has_run is", has_run)
+                # print("timer is", timer)
                 if timer is not None:
                     timer.cancel()
 
@@ -148,7 +160,8 @@ def run_pap(parent=None):
             return False
 
     def process_input():
-        global has_run, timer
+        global has_run, timer,timed_out
+        timed_out = False
         token = token_entry.get().strip()
         # Если уже рассчитывали — значит нажали "Сброс"
         if has_run:
@@ -163,33 +176,61 @@ def run_pap(parent=None):
             calculate_button.config(text="Поиск")
             has_run = False
             stop_event.clear()
+            if timer is not None:
+                timer.cancel()
             return
 
         input_text = input_field.get("1.0", tk.END).strip()
-        print("has_run2 is", has_run)
-        print("input_text is", input_text)
+        # print("has_run2 is", has_run)
+        # print("input_text is", input_text)
         if not input_text or input_text == PLACEHOLDER or not is_token_ascii(token):
+            # global timer
+            stop_event.clear()
+            # timer.cancel()
             output_field.config(state='normal')  # разблокировать поле
             output_field.delete("1.0", tk.END)  # очистить
-            output_field.insert(tk.END, "Токен и/или данные отсутствуют/неверны.\nНажмите 'Сброс' и добавьте/исправьте информацию.")
+            output_field.insert(tk.END, "Токен и/или данные отсутствуют/неверны.\nДобавьте/исправьте информацию.")
+            # 111
+            # calculate_button.config(text="Сброс", state='normal')
             output_field.config(state='disabled')  # заблокировать снова
+            return
         else:
+            calculate_button.config(state='disabled')
             write_to_output("⏳ Запрос выполняется. Пожалуйста, подождите...\n", tag="italic") # write_to_output("🔄 Запрос выполняется, пожалуйста подождите...\n", tag="italic")
             thread = threading.Thread(target=cnt, args=(token,),daemon=True)
             thread.start()
-        print("input_text2 is", input_text)
+        # print("input_text2 is", input_text)
         def timeout_check():
-            if not search_done['value'] or not input_text or input_text == PLACEHOLDER:
-                stop_event.set() # сигнал потокам, что надо завершиться
-                print("код прошёл")
-            elif output_field.winfo_exists():
+            global timed_out, timer
+            if timed_out:
+                return
+            timed_out = True
+            stop_event.set()
+
+            # if not search_done['value'] or not input_text or input_text == PLACEHOLDER:
+            #     stop_event.set() # сигнал потокам, что надо завершиться
+            #     print("код прошёл")
+            #     timer.cancel()
+
+            if output_field.winfo_exists():
                 print("output_place is",output_field.winfo_exists())
                 output_field.config(state='normal')
-                output_field.delete("1.0", tk.END)
+                # output_field.delete("1.0", tk.END)
                 output_field.insert(tk.END, "⛔ Программа остановлена, т.к. выполняется слишком долго (более минуты). Измените количество искомых объектов.")
+                calculate_button.config(state="normal")
+                # timer.cancel()
+                # stop_event.set()
                 output_field.config(state='disabled')
+            if timer is not None:
+                    timer.cancel()
+                # stop_event.set()
+                # timer.cancel()
 
-        timer = threading.Timer(2, timeout_check)
+
+            # if timer is not None:
+            #     timer.cancel()
+
+        timer = threading.Timer(60, timeout_check)
         timer.daemon = True
         timer.start()
 
@@ -199,7 +240,13 @@ def run_pap(parent=None):
             input_field.delete("1.0", tk.END)
             input_field.config(fg='black', font=('Arial', 10, 'normal'))
         input_field.config(state='disabled')
-        calculate_button.config(text="Сброс")
+        calculate_button.config(text="Сброс",state='normal')
+        # if timer is not None:
+        #     timer.cancel()
+        # stop_event.set()
+        # timer.cancel()
+
+
         has_run = True
 
     # Главное окно
@@ -210,6 +257,8 @@ def run_pap(parent=None):
     root.resizable(False, False)
     root.configure(bg="#f0f0f0")
 
+    root.bind("<Shift-F2>", lambda e: run_pap())
+    root.bind("<Escape>", lambda e: root.destroy())
 
     def toggle_token_visibility():
         if show_token_var.get():
@@ -301,6 +350,7 @@ def run_pap(parent=None):
     input_field.config(fg='gray', font=('Arial', 10, 'italic'))
     input_field.bind("<FocusIn>", clear_placeholder)
     input_field.bind("<Tab>", focus_next)
+    input_field.bind('<KP_Enter>', lambda event: input_field.event_generate('<Return>'))
     input_field.bind('<Control-a>', select_all_input)
     input_field.bind('<Control-A>', select_all_input)
     input_field.bind('<Control-v>', paste_to_input)

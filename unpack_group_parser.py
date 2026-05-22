@@ -859,6 +859,7 @@ class CiscoFirepowerParser3:
                 i += 1
             return objects
 
+
         def get_object_group(self, group_name):
             """Показываем object_ref без раскрытия"""
             group_start = None
