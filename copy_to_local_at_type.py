@@ -78,7 +78,7 @@ def get_device_platform(device_name, netbox_token):
     }
 
     url = f"{NETBOX_URL}/dcim/devices/?name={device_name}"
-    response = requests.get(url, headers=headers2, verify=False, timeout=10)
+    response = requests.get(url, headers=headers2, verify=False, timeout=30)
     data = response.json()
 
     if data['count'] == 0:
@@ -299,7 +299,7 @@ def main(gitlab_login, gitlab_password, netbox_token, box):
                     return
                 yield (f"Файлы {check[1]} успешно скачаны...")
                 time.sleep(1)
-                yield (f"Запускаем процесс очистки файлов {check[1]} ... \n-------")
+                yield (f"Запускаем процесс очистки файлов {check[1]}...\n-------")
                 # 🔹 пример — перенос файлов из репозитория в папку CONFIG_DIR
                 for root, dirs, files in os.walk(clone_dir):
                     for file in files:

@@ -1,11 +1,7 @@
 import ipaddress
 import tkinter as tk
 from tkinter import scrolledtext
-
-from paramiko.common import four_byte
-
 from unpack_group_core import get_object_group
-from unpack_group_parser import CiscoASAParser
 # def check_ip(objects, ranges, ip):
 #     if not ip:
 #         return [(obj["text"], False) for obj in objects]
