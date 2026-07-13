@@ -3,7 +3,7 @@ import sys
 import requests
 from urllib3.exceptions import InsecureRequestWarning
 from collections import defaultdict
-from class_resolver import (CiscoNexusParser, HuaweiParser, JuniperACLParser, FortiOSParser,
+from class_resolver import (CiscoNexusParser, JuniperACLParser, FortiOSParser,
                             CiscoIOSXEParser, CiscoIOSParser, EltexACLParser, CiscoASAParser3, EltexESRParser,
                             HPEParser, HuaweiParser3
                             )
